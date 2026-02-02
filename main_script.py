@@ -78,7 +78,7 @@ pop_growth_rate = (population[100] - population[95]) / population[95] / 5
 # Labor training + Prestige project: +21.8% long-term GDP improvement
 
 STURGEON_FISHER_BOOST = 0.733
-LOCUST_FARMER_DAMAGE = -0.683
+LOCUST_FARMER_DAMAGE = -0.575
 
 # Year 100 baseline values
 gdp_100 = gdp_data[100]
@@ -354,7 +354,7 @@ print("  Pattern: Strike damage partially offset when occurring in surge year")
 print("\nLOCUST SEVERITY VARIATION:")
 print("  Year 2→3:   -11.6% (moderate)")
 print("  Year 79→80: -20.0% (severe)")
-print("  Model uses: -20.2% (conservative/worst-case)")
+print(f"  Model uses: {yr100_101_drop:.1f}% (from Year 100→101 forecast)")
 avg_locust = (-11.6 + -20.0) / 2
 print(f"  Historical avg: {avg_locust:.1f}% (model may overestimate damage by ~{abs(yr100_101_drop - avg_locust):.0f}%)")
 
