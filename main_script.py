@@ -44,7 +44,7 @@ with open('gdp_island', 'r') as f:
 
 # Load profession income by year
 profession_income = {}
-with open('integrated_population_data_year100.csv', 'r') as f:
+with open('population_year105.csv', 'r') as f:
     reader = csv.DictReader(f)
     for row in reader:
         year = int(row['year'])
@@ -58,7 +58,7 @@ with open('integrated_population_data_year100.csv', 'r') as f:
 from collections import defaultdict
 population = defaultdict(int)
 workforce = defaultdict(lambda: defaultdict(int))
-with open('population_hage_island_year100.csv', 'r') as f:
+with open('population_year105.csv', 'r') as f:
     reader = csv.DictReader(f)
     for row in reader:
         year = int(row['year'])
@@ -319,12 +319,17 @@ forecasts = {
 # Year 104: Forecast -3.6%  vs Actual +15.1% → Recovery (locust clearing + policies)
 # Year 105: Forecast +7.2%  vs Actual +15.0% → Continued recovery momentum
 #
-# ROOT CAUSES:
-#   1. Locust damage was more severe than -57.5% (closer to -70%)
-#   2. Locust recovery takes 3 years, not 1 — farmer income still depressed in Year 103
-#   3. Year 102 sturgeon surge did not produce expected HIGH income in 103;
-#      locust aftermath likely suppressed the effect
-#   4. Year 104-105 recovery driven by locust clearing + policies delivering returns
+# ROOT CAUSES (revised from profession-level actuals in population_year105.csv):
+#   1. Locust damage peaked at -82% in Year 102 (2-yr lag from Year 100 event),
+#      not -57.5% in Year 101.  Farmer avg income: $2544(100)→$2082(101)→$453(102)
+#   2. Farmer income stayed crushed in Year 103 ($456 avg); recovery began Year 104
+#   3. Sturgeon cycle PHASE-SHIFTED by -1 year:
+#      Surges at 101, 104, 107… (not 102, 105, 108)
+#      → HIGH fisher income at 102, 105, 108… (not 103, 106, 109)
+#      Year 102 was HIGH ($4256); Year 103 was LOW ($2478) — opposite of forecast
+#   4. Civil servant workforce GREW 25→30 (total income +13.4%); -2%/yr was wrong
+#   5. Retired population collapsed 60→21 (retirement age 64→70 policy effect)
+#   6. Year 104-105 recovery driven by locust clearing + policies delivering returns
 
 ACTUAL_GDP = {
     101: 972000.46,
@@ -335,94 +340,116 @@ ACTUAL_GDP = {
 }
 
 # =============================================================================
-# RECALIBRATED PARAMETERS
+# RECALIBRATED PARAMETERS (from Years 100-105 profession-level actuals)
 # =============================================================================
-LOCUST_FARMER_DAMAGE_REVISED = -0.70   # Revised from -0.575 (back-calculated from actual 101)
-STURGEON_CONFIDENCE = 0.70             # Reduced from 1.0 after Year 103 disruption
-FISHER_BLENDED_HIGH = FISHER_HIGH_AVG * STURGEON_CONFIDENCE + FISHER_LOW_AVG * (1 - STURGEON_CONFIDENCE)
+# Locust: peak damage -82% at Year 102 (2-yr lag), not -57.5% at Year 101
+LOCUST_FARMER_DAMAGE_REVISED = -0.82
+
+# Sturgeon cycle confirmed but phase-shifted by -1 year.
+# Surges: 101, 104, 107, 110 …  →  HIGH income (1-yr lag): 102, 105, 108, 111 …
+# HIGH avg income has been declining: $4647(100), $4256(102), $4143(105)
+# Use 4-year rolling window (97, 100, 102, 105) for HIGH; 5-year for LOW
+FISHER_HIGH_AVG_R = (4740.48 + 4646.92 + 4255.83 + 4143.01) / 4  # ~4447
+FISHER_LOW_AVG_R  = (2780.97 + 2764.10 + 2474.16 + 2478.11 + 2489.75) / 5  # ~2597
+
+# Growth rates recalibrated from 100→105 total-income actuals
+CRAFTSMAN_GROWTH_R     = 0.008    # Was 0.005; 100→105 annualised +0.77%
+SERVICE_GROWTH_R       = 0.011    # Was 0.008; 100→105 annualised +1.05%
+CIVIL_SERVANT_GROWTH_R = 0.025    # Was -0.02 decline; workforce GREW 25→30
+FARMER_GROWTH_R        = 0.004    # Stable post-recovery baseline
+
+# Retired: policy shock (ret. age 64→70) bottomed Year 105 (21 workers).
+# New age-70 retirees re-enter from Year 106; manual projection below.
+RETIRED_PROJ = {106: 22000, 107: 24000, 108: 27000, 109: 30000, 110: 33000}
+
+# Homemaker + Unemployed: net-cost category, combined costs trending ~5%/yr
+HOME_UNEMP_GROWTH = 0.05
 
 # =============================================================================
-# YEAR 105 PROFESSION ESTIMATES (extrapolated baseline for 106-110)
+# YEAR 105 ACTUALS (all professions, loaded from population_year105.csv)
 # =============================================================================
-# No profession-level actuals for 101-105, so we extrapolate from Year 100.
-# A scale factor anchors tracked professions to the actual Year 105 GDP.
-# This absorbs untracked professions (retired, homemaker, child) and any
-# real-world drift from our trend estimates.
-fisher_105_est = FISHER_LOW_AVG * fisher_count_100   # 105 is surge year (LOW income)
-craftsman_105_est = craftsman_100 * (1 + CRAFTSMAN_GROWTH) ** 5
-service_105_est = service_100 * (1 + SERVICE_GROWTH) ** 5
-civil_105_est = civil_100 * (1 + CIVIL_WORKFORCE_DECLINE) ** 5
-farmer_105_est = farmer_100 * (1 + WEATHER_IMPACT[105])  # -1% flood
-
-tracked_total_105 = fisher_105_est + craftsman_105_est + service_105_est + civil_105_est + farmer_105_est
-GDP_SCALE = ACTUAL_GDP[105] / tracked_total_105   # ~1.20
+fisher_105_est     = profession_income[105]['fisher']            # 323,155  HIGH year
+farmer_105_est     = profession_income[105]['farmer']            # 174,107
+craftsman_105_est  = profession_income[105]['craftsman']         # 253,394
+service_105_est    = profession_income[105]['service provider']  # 225,830
+civil_105_est      = profession_income[105]['civil servant']     # 185,584
+retired_105_est    = profession_income[105]['retired']           #  27,599
+homemaker_105_est  = profession_income[105]['homemaker']         # -16,805
+unemployed_105_est = profession_income[105]['unemployed']        #  -4,427
+fisher_count_105   = workforce[105]['fisher']                    # 78
 
 POP_PRODUCTIVITY_NEW = {106: 1.002, 107: 1.002, 108: 1.001, 109: 1.001, 110: 1.001}
 
 # =============================================================================
-# OUTPUT RESULTS
+# YEARS 106-110: REVISED FORECAST
+# =============================================================================
+# Corrected sturgeon cycle: surges at 101, 104, 107, 110 …
+#   → HIGH fisher income (1-yr lag) at 102, 105, 108, 111 …
+# 106 = LOW | 107 = LOW (surge event) | 108 = HIGH | 109 = LOW | 110 = LOW (surge)
+# All professions tracked; baselines are Year 105 actuals.  No GDP_SCALE needed.
 # =============================================================================
 
-# =============================================================================
-# YEAR 106: Sturgeon HIGH (blended, 70% confidence) — surge was in 105
-# =============================================================================
-fisher_106 = FISHER_BLENDED_HIGH * fisher_count_100
-craftsman_106 = craftsman_105_est * (1 + CRAFTSMAN_GROWTH)
-service_106 = service_105_est * (1 + SERVICE_GROWTH)
-civil_106 = civil_105_est * (1 + CIVIL_WORKFORCE_DECLINE)
-farmer_106 = farmer_105_est  # Normal weather (no forecast data beyond 105)
+home_unemp_105 = homemaker_105_est + unemployed_105_est  # combined net-cost baseline
 
-tracked_total_106 = fisher_106 + craftsman_106 + service_106 + civil_106 + farmer_106
-gdp_106 = tracked_total_106 * GDP_SCALE * POP_PRODUCTIVITY_NEW[106]
+# --- Year 106: Fisher LOW ---
+fisher_106     = FISHER_LOW_AVG_R * fisher_count_105
+craftsman_106  = craftsman_105_est  * (1 + CRAFTSMAN_GROWTH_R)
+service_106    = service_105_est    * (1 + SERVICE_GROWTH_R)
+civil_106      = civil_105_est      * (1 + CIVIL_SERVANT_GROWTH_R)
+farmer_106     = farmer_105_est     * (1 + FARMER_GROWTH_R)
+retired_106    = RETIRED_PROJ[106]
+home_unemp_106 = home_unemp_105     * (1 + HOME_UNEMP_GROWTH)
 
-# =============================================================================
-# YEAR 107: LOW fisher cycle
-# =============================================================================
-fisher_107 = FISHER_LOW_AVG * fisher_count_100
-craftsman_107 = craftsman_106 * (1 + CRAFTSMAN_GROWTH)
-service_107 = service_106 * (1 + SERVICE_GROWTH)
-civil_107 = civil_106 * (1 + CIVIL_WORKFORCE_DECLINE)
-farmer_107 = farmer_106
+gdp_106 = (fisher_106 + craftsman_106 + service_106 + civil_106 + farmer_106
+           + retired_106 + home_unemp_106) * POP_PRODUCTIVITY_NEW[106]
 
-tracked_total_107 = fisher_107 + craftsman_107 + service_107 + civil_107 + farmer_107
-gdp_107 = tracked_total_107 * GDP_SCALE * POP_PRODUCTIVITY_NEW[107]
+# --- Year 107: Fisher LOW  (sturgeon surge event — income realised in 108) ---
+fisher_107     = FISHER_LOW_AVG_R * fisher_count_105
+craftsman_107  = craftsman_106  * (1 + CRAFTSMAN_GROWTH_R)
+service_107    = service_106    * (1 + SERVICE_GROWTH_R)
+civil_107      = civil_106      * (1 + CIVIL_SERVANT_GROWTH_R)
+farmer_107     = farmer_106     * (1 + FARMER_GROWTH_R)
+retired_107    = RETIRED_PROJ[107]
+home_unemp_107 = home_unemp_106 * (1 + HOME_UNEMP_GROWTH)
 
-# =============================================================================
-# YEAR 108: LOW fisher + sturgeon surge event (income realised in 109)
-# 3-year cycle: surges at 105, 108, 111...
-# =============================================================================
-fisher_108 = FISHER_LOW_AVG * fisher_count_100
-craftsman_108 = craftsman_107 * (1 + CRAFTSMAN_GROWTH)
-service_108 = service_107 * (1 + SERVICE_GROWTH)
-civil_108 = civil_107 * (1 + CIVIL_WORKFORCE_DECLINE)
-farmer_108 = farmer_107
+gdp_107 = (fisher_107 + craftsman_107 + service_107 + civil_107 + farmer_107
+           + retired_107 + home_unemp_107) * POP_PRODUCTIVITY_NEW[107]
 
-tracked_total_108 = fisher_108 + craftsman_108 + service_108 + civil_108 + farmer_108
-gdp_108 = tracked_total_108 * GDP_SCALE * POP_PRODUCTIVITY_NEW[108]
+# --- Year 108: Fisher HIGH — surge was in 107 ---
+fisher_108     = FISHER_HIGH_AVG_R * fisher_count_105
+craftsman_108  = craftsman_107  * (1 + CRAFTSMAN_GROWTH_R)
+service_108    = service_107    * (1 + SERVICE_GROWTH_R)
+civil_108      = civil_107      * (1 + CIVIL_SERVANT_GROWTH_R)
+farmer_108     = farmer_107     * (1 + FARMER_GROWTH_R)
+retired_108    = RETIRED_PROJ[108]
+home_unemp_108 = home_unemp_107 * (1 + HOME_UNEMP_GROWTH)
 
-# =============================================================================
-# YEAR 109: Sturgeon HIGH (blended, 70% confidence) — surge was in 108
-# =============================================================================
-fisher_109 = FISHER_BLENDED_HIGH * fisher_count_100
-craftsman_109 = craftsman_108 * (1 + CRAFTSMAN_GROWTH)
-service_109 = service_108 * (1 + SERVICE_GROWTH)
-civil_109 = civil_108 * (1 + CIVIL_WORKFORCE_DECLINE)
-farmer_109 = farmer_108
+gdp_108 = (fisher_108 + craftsman_108 + service_108 + civil_108 + farmer_108
+           + retired_108 + home_unemp_108) * POP_PRODUCTIVITY_NEW[108]
 
-tracked_total_109 = fisher_109 + craftsman_109 + service_109 + civil_109 + farmer_109
-gdp_109 = tracked_total_109 * GDP_SCALE * POP_PRODUCTIVITY_NEW[109]
+# --- Year 109: Fisher LOW ---
+fisher_109     = FISHER_LOW_AVG_R * fisher_count_105
+craftsman_109  = craftsman_108  * (1 + CRAFTSMAN_GROWTH_R)
+service_109    = service_108    * (1 + SERVICE_GROWTH_R)
+civil_109      = civil_108      * (1 + CIVIL_SERVANT_GROWTH_R)
+farmer_109     = farmer_108     * (1 + FARMER_GROWTH_R)
+retired_109    = RETIRED_PROJ[109]
+home_unemp_109 = home_unemp_108 * (1 + HOME_UNEMP_GROWTH)
 
-# =============================================================================
-# YEAR 110: LOW fisher cycle
-# =============================================================================
-fisher_110 = FISHER_LOW_AVG * fisher_count_100
-craftsman_110 = craftsman_109 * (1 + CRAFTSMAN_GROWTH)
-service_110 = service_109 * (1 + SERVICE_GROWTH)
-civil_110 = civil_109 * (1 + CIVIL_WORKFORCE_DECLINE)
-farmer_110 = farmer_109
+gdp_109 = (fisher_109 + craftsman_109 + service_109 + civil_109 + farmer_109
+           + retired_109 + home_unemp_109) * POP_PRODUCTIVITY_NEW[109]
 
-tracked_total_110 = fisher_110 + craftsman_110 + service_110 + civil_110 + farmer_110
-gdp_110 = tracked_total_110 * GDP_SCALE * POP_PRODUCTIVITY_NEW[110]
+# --- Year 110: Fisher LOW  (sturgeon surge event — income realised in 111) ---
+fisher_110     = FISHER_LOW_AVG_R * fisher_count_105
+craftsman_110  = craftsman_109  * (1 + CRAFTSMAN_GROWTH_R)
+service_110    = service_109    * (1 + SERVICE_GROWTH_R)
+civil_110      = civil_109      * (1 + CIVIL_SERVANT_GROWTH_R)
+farmer_110     = farmer_109     * (1 + FARMER_GROWTH_R)
+retired_110    = RETIRED_PROJ[110]
+home_unemp_110 = home_unemp_109 * (1 + HOME_UNEMP_GROWTH)
+
+gdp_110 = (fisher_110 + craftsman_110 + service_110 + civil_110 + farmer_110
+           + retired_110 + home_unemp_110) * POP_PRODUCTIVITY_NEW[110]
 
 new_forecasts = {106: gdp_106, 107: gdp_107, 108: gdp_108, 109: gdp_109, 110: gdp_110}
 
@@ -433,14 +460,15 @@ print("=" * 70)
 print("GDP FORECAST FOR HAGELSLAG ISLAND — REVISED MODEL")
 print("=" * 70)
 
-print("\nModel Parameters:")
-print(f"  Fisher 3-year cycle:       HIGH=${FISHER_HIGH_AVG:,.0f}, LOW=${FISHER_LOW_AVG:,.0f}")
-print(f"  Locust damage (original):  {LOCUST_FARMER_DAMAGE*100:.1f}%  →  revised: {LOCUST_FARMER_DAMAGE_REVISED*100:.1f}%")
-print(f"  Sturgeon confidence:       {STURGEON_CONFIDENCE*100:.0f}%  (blended HIGH = ${FISHER_BLENDED_HIGH:,.0f})")
-print(f"  Craftsman growth:          +{CRAFTSMAN_GROWTH*100:.1f}% annual")
-print(f"  Service provider growth:   +{SERVICE_GROWTH*100:.1f}% annual")
-print(f"  Civil servant workforce:   {CIVIL_WORKFORCE_DECLINE*100:.1f}% annual (declining)")
-print(f"  GDP scale factor:          {GDP_SCALE:.4f}")
+print("\nModel Parameters (recalibrated from 100-105 actuals):")
+print(f"  Fisher 3-yr cycle:         HIGH=${FISHER_HIGH_AVG_R:,.0f}, LOW=${FISHER_LOW_AVG_R:,.0f}")
+print(f"  Sturgeon cycle:            Phase-shifted — surges 101,104,107,110")
+print(f"  Locust damage (revised):   {LOCUST_FARMER_DAMAGE_REVISED*100:.1f}% peak (2-yr lag)")
+print(f"  Craftsman total growth:    +{CRAFTSMAN_GROWTH_R*100:.1f}% annual")
+print(f"  Service total growth:      +{SERVICE_GROWTH_R*100:.1f}% annual")
+print(f"  Civil servant growth:      +{CIVIL_SERVANT_GROWTH_R*100:.1f}% annual (workforce grew)")
+print(f"  Farmer total growth:       +{FARMER_GROWTH_R*100:.1f}% annual (post-recovery)")
+print(f"  Retired income (proj):     ${RETIRED_PROJ[106]:,} → ${RETIRED_PROJ[110]:,} (recovering)")
 
 print("\nPolicies (Year 101, sustained):")
 print(f"  Prestige Project:          Construction complete; benefits continue")
@@ -464,10 +492,32 @@ for year in range(101, 106):
     prev_actual = actual
 
 print("-" * 70)
-print("  101: Locust impact more severe than forecast")
-print("  102: Drought stalled farmer recovery")
-print("  103: Sturgeon HIGH failed — prolonged locust tail (biggest miss)")
-print("  104-105: Policies + recovery drove ~15% annual growth")
+print("  101: Locust partial impact (-18% farmer); fisher LOW as forecast")
+print("  102: Farmer CRASHED -82% (peak locust damage); fisher unexpectedly HIGH")
+print("  103: Farmer still crushed; fisher LOW (cycle phase opposite of forecast)")
+print("  104-105: Farmer recovery + policies drove ~15% annual growth")
+
+# --- profession-level actuals (Years 100-105) ---
+print("\n" + "=" * 70)
+print("YEARS 100-105: PROFESSION TOTAL INCOME (actuals)")
+print("=" * 70)
+prof_keys = ['farmer', 'fisher', 'craftsman', 'service provider', 'civil servant',
+             'retired', 'homemaker', 'unemployed']
+print(f"{'Profession':<20}", end="")
+for y in range(100, 106):
+    print(f"{y:>12}", end="")
+print()
+print("-" * 92)
+for prof in prof_keys:
+    print(f"{prof:<20}", end="")
+    for y in range(100, 106):
+        print(f"{profession_income[y].get(prof, 0):>12,.0f}", end="")
+    print()
+print("-" * 92)
+print(f"{'TOTAL GDP':<20}", end="")
+for y in range(100, 106):
+    print(f"{sum(profession_income[y].values()):>12,.0f}", end="")
+print()
 
 # --- 106-110 forecast ---
 print("\n" + "=" * 70)
@@ -475,11 +525,11 @@ print("YEARS 106-110: REVISED FORECAST (from Year 105 actual baseline)")
 print("=" * 70)
 
 notes_106_110 = {
-    106: "Sturgeon HIGH (70% conf) from 105 surge",
-    107: "Fisher LOW + steady trends",
-    108: "Fisher LOW + sturgeon surge (income in 109)",
-    109: "Sturgeon HIGH (70% conf) from 108 surge",
-    110: "Fisher LOW + steady trends"
+    106: "Fisher LOW; all professions from 105 actuals",
+    107: "Fisher LOW + sturgeon surge event (income in 108)",
+    108: "Fisher HIGH from 107 surge; policies sustained",
+    109: "Fisher LOW; steady profession trends",
+    110: "Fisher LOW + sturgeon surge (income in 111)"
 }
 
 print(f"{'Year':<6}{'GDP':>15}{'YoY Chg':>10}  Notes")
@@ -495,9 +545,10 @@ for year in range(106, 111):
 
 print("-" * 70)
 print("\nConfidence notes:")
-print("  - Sturgeon timing carries 30% uncertainty (disrupted in 103)")
-print("  - If cycle shifted +1yr: HIGH years move to 107, 110 instead")
+print("  - Sturgeon cycle confirmed shifted; surges at 101,104,107,110")
+print("  - If cycle drifts +1yr: HIGH moves to 109 instead of 108")
 print("  - No disaster events modelled (next locust est. Year 120+)")
-print("  - Policies treated as sustained from Year 105 level")
+print("  - All professions tracked; retired recovering from policy shock")
 print("  - Weather assumed normal beyond 105 (no data available)")
+print("  - Growth rates derived from 100→105 actual profession totals")
 print("\n" + "=" * 70)
