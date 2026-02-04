@@ -366,6 +366,43 @@ RETIRED_PROJ = {106: 22000, 107: 24000, 108: 27000, 109: 30000, 110: 33000}
 HOME_UNEMP_GROWTH = 0.05
 
 # =============================================================================
+# NEW POLICIES ENACTED IN YEAR 106
+# =============================================================================
+# (A) Year 101 Prestige Project carry-over
+#     Infrastructure completed in 105; residual benefit continues into 106.
+#     Tapers from 3.0 % (Year 105) → 2.5 % (Year 106), then fades.
+PRESTIGE_101_CARRYOVER = {106: 0.025}   # Year 106 only
+
+# (B) Wind Energy Transition (Years 106-110)
+#     Capital & conversion costs drag GDP −3 % p.a. for 5 years.
+#     Permanently lowers emissions; no further GDP effect modelled after 110.
+WIND_TRANSITION_DRAG = -0.03
+
+# (B2) Resident displeasure with wind turbines (Years 106-110)
+#      Channels: reduced tourism demand, lower civic morale, slight
+#      island-wide productivity loss.  Ramps up as turbines become
+#      operational; partial habituation toward end of the window.
+WIND_DISPLEASURE_DRAG = {
+    106: -0.005,   # Construction underway; concerns voiced
+    107: -0.010,   # Turbines visible; opposition grows
+    108: -0.015,   # Peak displeasure — fully operational
+    109: -0.015,   # Sustained negative sentiment
+    110: -0.010    # Partial habituation
+}
+
+# (C) Dual-Income Household Incentive (Years 106-110)
+#     2 % of current homemakers exit each year (compounds annually).
+#     New entrants earn $4 500/yr (mid-range; training programs are mature).
+#     Previous-year entrants' income grows at avg profession rate (+1.2 % p.a.).
+HOMEMAKER_EXIT_RATE = 0.02
+NEW_ENTRANT_INCOME  = 4500
+ENTRANT_GROWTH      = 0.012   # avg of craftsman/service/civil/farmer growth rates
+
+# (D) Second Prestige Project (enacted Year 106; effects Years 107-111)
+#     Same gradual ramp profile as the 101-105 project.
+PRESTIGE_106_BOOST = {107: 0.008, 108: 0.015, 109: 0.022, 110: 0.028}
+
+# =============================================================================
 # YEAR 105 ACTUALS (all professions, loaded from population_year105.csv)
 # =============================================================================
 fisher_105_est     = profession_income[105]['fisher']            # 323,155  HIGH year
@@ -381,75 +418,146 @@ fisher_count_105   = workforce[105]['fisher']                    # 78
 POP_PRODUCTIVITY_NEW = {106: 1.002, 107: 1.002, 108: 1.001, 109: 1.001, 110: 1.001}
 
 # =============================================================================
-# YEARS 106-110: REVISED FORECAST
+# YEARS 106-110: REVISED FORECAST  (Year 106 policies active)
 # =============================================================================
-# Corrected sturgeon cycle: surges at 101, 104, 107, 110 …
-#   → HIGH fisher income (1-yr lag) at 102, 105, 108, 111 …
-# 106 = LOW | 107 = LOW (surge event) | 108 = HIGH | 109 = LOW | 110 = LOW (surge)
-# All professions tracked; baselines are Year 105 actuals.  No GDP_SCALE needed.
+# Sturgeon: surges 101,104,107,110 → HIGH income (1-yr lag) 102,105,108,111
+#   106=LOW | 107=LOW (surge) | 108=HIGH | 109=LOW | 110=LOW (surge)
+#
+# GDP-level policy multipliers (applied after profession sum):
+#   (A)  Prestige-101 carry-over  — Year 106 only       (+2.5 %)
+#   (B)  Wind transition          — Years 106-110       (−3.0 %)
+#   (B2) Resident displeasure     — Years 106-110       (−0.5…−1.5 %)
+#   (D)  Prestige-106 ramp        — Years 107-110       (+0.8…+2.8 %)
+# Profession-level adjustment:
+#   (C) Homemaker exit → cumulative new-entrant income tracked per year
 # =============================================================================
 
-home_unemp_105 = homemaker_105_est + unemployed_105_est  # combined net-cost baseline
+# --- Separate baselines (Year 105 actuals) ---
+hm_count_prev  = workforce[105]['homemaker']   # homemaker headcount in 105
+hm_income_prev = homemaker_105_est             # total homemaker income 105 (negative)
+unemp_prev     = unemployed_105_est            # total unemployed income 105 (negative)
+cum_entrant_inc = 0.0                          # cumulative new-entrant income (grows + adds)
 
-# --- Year 106: Fisher LOW ---
-fisher_106     = FISHER_LOW_AVG_R * fisher_count_105
-craftsman_106  = craftsman_105_est  * (1 + CRAFTSMAN_GROWTH_R)
-service_106    = service_105_est    * (1 + SERVICE_GROWTH_R)
-civil_106      = civil_105_est      * (1 + CIVIL_SERVANT_GROWTH_R)
-farmer_106     = farmer_105_est     * (1 + FARMER_GROWTH_R)
+# ── Year 106: Fisher LOW ──
+hm_leaving     = hm_count_prev * HOMEMAKER_EXIT_RATE
+hm_count_106   = hm_count_prev - hm_leaving
+hm_income_106  = hm_income_prev * (1 + HOME_UNEMP_GROWTH) * (hm_count_106 / hm_count_prev)
+unemp_106      = unemp_prev     * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_inc = cum_entrant_inc * (1 + ENTRANT_GROWTH) + hm_leaving * NEW_ENTRANT_INCOME
+
+fisher_106     = FISHER_LOW_AVG_R  * fisher_count_105
+craftsman_106  = craftsman_105_est * (1 + CRAFTSMAN_GROWTH_R)
+service_106    = service_105_est   * (1 + SERVICE_GROWTH_R)
+civil_106      = civil_105_est     * (1 + CIVIL_SERVANT_GROWTH_R)
+farmer_106     = farmer_105_est    * (1 + FARMER_GROWTH_R)
 retired_106    = RETIRED_PROJ[106]
-home_unemp_106 = home_unemp_105     * (1 + HOME_UNEMP_GROWTH)
 
-gdp_106 = (fisher_106 + craftsman_106 + service_106 + civil_106 + farmer_106
-           + retired_106 + home_unemp_106) * POP_PRODUCTIVITY_NEW[106]
+prof_sum_106   = (fisher_106 + craftsman_106 + service_106 + civil_106 + farmer_106
+                  + retired_106 + hm_income_106 + unemp_106 + cum_entrant_inc)
+policy_106     = ((1 + PRESTIGE_101_CARRYOVER.get(106, 0))
+                  * (1 + WIND_TRANSITION_DRAG)
+                  * (1 + WIND_DISPLEASURE_DRAG.get(106, 0))
+                  * (1 + PRESTIGE_106_BOOST.get(106, 0)))
+gdp_106        = prof_sum_106 * POP_PRODUCTIVITY_NEW[106] * policy_106
 
-# --- Year 107: Fisher LOW  (sturgeon surge event — income realised in 108) ---
-fisher_107     = FISHER_LOW_AVG_R * fisher_count_105
+# snapshots for output
+cum_ent_106 = cum_entrant_inc; hm_cnt_106 = hm_count_106; hm_lv_106 = hm_leaving
+
+# ── Year 107: Fisher LOW  (sturgeon surge — income realised 108) ──
+hm_leaving     = hm_count_106  * HOMEMAKER_EXIT_RATE
+hm_count_107   = hm_count_106  - hm_leaving
+hm_income_107  = hm_income_106 * (1 + HOME_UNEMP_GROWTH) * (hm_count_107 / hm_count_106)
+unemp_107      = unemp_106     * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_inc = cum_entrant_inc * (1 + ENTRANT_GROWTH) + hm_leaving * NEW_ENTRANT_INCOME
+
+fisher_107     = FISHER_LOW_AVG_R  * fisher_count_105
 craftsman_107  = craftsman_106  * (1 + CRAFTSMAN_GROWTH_R)
 service_107    = service_106    * (1 + SERVICE_GROWTH_R)
 civil_107      = civil_106      * (1 + CIVIL_SERVANT_GROWTH_R)
 farmer_107     = farmer_106     * (1 + FARMER_GROWTH_R)
 retired_107    = RETIRED_PROJ[107]
-home_unemp_107 = home_unemp_106 * (1 + HOME_UNEMP_GROWTH)
 
-gdp_107 = (fisher_107 + craftsman_107 + service_107 + civil_107 + farmer_107
-           + retired_107 + home_unemp_107) * POP_PRODUCTIVITY_NEW[107]
+prof_sum_107   = (fisher_107 + craftsman_107 + service_107 + civil_107 + farmer_107
+                  + retired_107 + hm_income_107 + unemp_107 + cum_entrant_inc)
+policy_107     = ((1 + PRESTIGE_101_CARRYOVER.get(107, 0))
+                  * (1 + WIND_TRANSITION_DRAG)
+                  * (1 + WIND_DISPLEASURE_DRAG.get(107, 0))
+                  * (1 + PRESTIGE_106_BOOST.get(107, 0)))
+gdp_107        = prof_sum_107 * POP_PRODUCTIVITY_NEW[107] * policy_107
 
-# --- Year 108: Fisher HIGH — surge was in 107 ---
+cum_ent_107 = cum_entrant_inc; hm_cnt_107 = hm_count_107; hm_lv_107 = hm_leaving
+
+# ── Year 108: Fisher HIGH  (surge was in 107) ──
+hm_leaving     = hm_count_107  * HOMEMAKER_EXIT_RATE
+hm_count_108   = hm_count_107  - hm_leaving
+hm_income_108  = hm_income_107 * (1 + HOME_UNEMP_GROWTH) * (hm_count_108 / hm_count_107)
+unemp_108      = unemp_107     * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_inc = cum_entrant_inc * (1 + ENTRANT_GROWTH) + hm_leaving * NEW_ENTRANT_INCOME
+
 fisher_108     = FISHER_HIGH_AVG_R * fisher_count_105
 craftsman_108  = craftsman_107  * (1 + CRAFTSMAN_GROWTH_R)
 service_108    = service_107    * (1 + SERVICE_GROWTH_R)
 civil_108      = civil_107      * (1 + CIVIL_SERVANT_GROWTH_R)
 farmer_108     = farmer_107     * (1 + FARMER_GROWTH_R)
 retired_108    = RETIRED_PROJ[108]
-home_unemp_108 = home_unemp_107 * (1 + HOME_UNEMP_GROWTH)
 
-gdp_108 = (fisher_108 + craftsman_108 + service_108 + civil_108 + farmer_108
-           + retired_108 + home_unemp_108) * POP_PRODUCTIVITY_NEW[108]
+prof_sum_108   = (fisher_108 + craftsman_108 + service_108 + civil_108 + farmer_108
+                  + retired_108 + hm_income_108 + unemp_108 + cum_entrant_inc)
+policy_108     = ((1 + PRESTIGE_101_CARRYOVER.get(108, 0))
+                  * (1 + WIND_TRANSITION_DRAG)
+                  * (1 + WIND_DISPLEASURE_DRAG.get(108, 0))
+                  * (1 + PRESTIGE_106_BOOST.get(108, 0)))
+gdp_108        = prof_sum_108 * POP_PRODUCTIVITY_NEW[108] * policy_108
 
-# --- Year 109: Fisher LOW ---
-fisher_109     = FISHER_LOW_AVG_R * fisher_count_105
+cum_ent_108 = cum_entrant_inc; hm_cnt_108 = hm_count_108; hm_lv_108 = hm_leaving
+
+# ── Year 109: Fisher LOW ──
+hm_leaving     = hm_count_108  * HOMEMAKER_EXIT_RATE
+hm_count_109   = hm_count_108  - hm_leaving
+hm_income_109  = hm_income_108 * (1 + HOME_UNEMP_GROWTH) * (hm_count_109 / hm_count_108)
+unemp_109      = unemp_108     * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_inc = cum_entrant_inc * (1 + ENTRANT_GROWTH) + hm_leaving * NEW_ENTRANT_INCOME
+
+fisher_109     = FISHER_LOW_AVG_R  * fisher_count_105
 craftsman_109  = craftsman_108  * (1 + CRAFTSMAN_GROWTH_R)
 service_109    = service_108    * (1 + SERVICE_GROWTH_R)
 civil_109      = civil_108      * (1 + CIVIL_SERVANT_GROWTH_R)
 farmer_109     = farmer_108     * (1 + FARMER_GROWTH_R)
 retired_109    = RETIRED_PROJ[109]
-home_unemp_109 = home_unemp_108 * (1 + HOME_UNEMP_GROWTH)
 
-gdp_109 = (fisher_109 + craftsman_109 + service_109 + civil_109 + farmer_109
-           + retired_109 + home_unemp_109) * POP_PRODUCTIVITY_NEW[109]
+prof_sum_109   = (fisher_109 + craftsman_109 + service_109 + civil_109 + farmer_109
+                  + retired_109 + hm_income_109 + unemp_109 + cum_entrant_inc)
+policy_109     = ((1 + PRESTIGE_101_CARRYOVER.get(109, 0))
+                  * (1 + WIND_TRANSITION_DRAG)
+                  * (1 + WIND_DISPLEASURE_DRAG.get(109, 0))
+                  * (1 + PRESTIGE_106_BOOST.get(109, 0)))
+gdp_109        = prof_sum_109 * POP_PRODUCTIVITY_NEW[109] * policy_109
 
-# --- Year 110: Fisher LOW  (sturgeon surge event — income realised in 111) ---
-fisher_110     = FISHER_LOW_AVG_R * fisher_count_105
+cum_ent_109 = cum_entrant_inc; hm_cnt_109 = hm_count_109; hm_lv_109 = hm_leaving
+
+# ── Year 110: Fisher LOW  (sturgeon surge — income realised 111) ──
+hm_leaving     = hm_count_109  * HOMEMAKER_EXIT_RATE
+hm_count_110   = hm_count_109  - hm_leaving
+hm_income_110  = hm_income_109 * (1 + HOME_UNEMP_GROWTH) * (hm_count_110 / hm_count_109)
+unemp_110      = unemp_109     * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_inc = cum_entrant_inc * (1 + ENTRANT_GROWTH) + hm_leaving * NEW_ENTRANT_INCOME
+
+fisher_110     = FISHER_LOW_AVG_R  * fisher_count_105
 craftsman_110  = craftsman_109  * (1 + CRAFTSMAN_GROWTH_R)
 service_110    = service_109    * (1 + SERVICE_GROWTH_R)
 civil_110      = civil_109      * (1 + CIVIL_SERVANT_GROWTH_R)
 farmer_110     = farmer_109     * (1 + FARMER_GROWTH_R)
 retired_110    = RETIRED_PROJ[110]
-home_unemp_110 = home_unemp_109 * (1 + HOME_UNEMP_GROWTH)
 
-gdp_110 = (fisher_110 + craftsman_110 + service_110 + civil_110 + farmer_110
-           + retired_110 + home_unemp_110) * POP_PRODUCTIVITY_NEW[110]
+prof_sum_110   = (fisher_110 + craftsman_110 + service_110 + civil_110 + farmer_110
+                  + retired_110 + hm_income_110 + unemp_110 + cum_entrant_inc)
+policy_110     = ((1 + PRESTIGE_101_CARRYOVER.get(110, 0))
+                  * (1 + WIND_TRANSITION_DRAG)
+                  * (1 + WIND_DISPLEASURE_DRAG.get(110, 0))
+                  * (1 + PRESTIGE_106_BOOST.get(110, 0)))
+gdp_110        = prof_sum_110 * POP_PRODUCTIVITY_NEW[110] * policy_110
+
+cum_ent_110 = cum_entrant_inc; hm_cnt_110 = hm_count_110; hm_lv_110 = hm_leaving
 
 new_forecasts = {106: gdp_106, 107: gdp_107, 108: gdp_108, 109: gdp_109, 110: gdp_110}
 
@@ -474,6 +582,13 @@ print("\nPolicies (Year 101, sustained):")
 print(f"  Prestige Project:          Construction complete; benefits continue")
 print(f"  Retirement Age:            {OLD_RETIREMENT_AGE} → {NEW_RETIREMENT_AGE} (adoption ongoing)")
 print(f"  Training Programs (18+):   Mature, sustained")
+
+print("\nPolicies (Year 106, new):")
+print(f"  Prestige-101 carry-over:   +2.5 % GDP in Year 106 (residual from 101 project)")
+print(f"  Wind Energy Transition:    −3.0 % GDP p.a. Years 106-110; permanent ↓ emissions")
+print(f"  Resident Displeasure:      −0.5…−1.5 % GDP Years 106-110; tourism & morale drag")
+print(f"  Dual-Income Incentive:     2 %/yr homemakers → workforce (Years 106-110)")
+print(f"  Prestige Project 2:        Enacted 106; +0.8…+2.8 % ramp Years 107-110 (+3.0 % in 111)")
 
 # --- 101-105 comparison ---
 print("\n" + "=" * 70)
@@ -521,34 +636,117 @@ print()
 
 # --- 106-110 forecast ---
 print("\n" + "=" * 70)
-print("YEARS 106-110: REVISED FORECAST (from Year 105 actual baseline)")
+print("YEARS 106-110: REVISED FORECAST (Year 106 policies active)")
 print("=" * 70)
 
 notes_106_110 = {
-    106: "Fisher LOW; all professions from 105 actuals",
-    107: "Fisher LOW + sturgeon surge event (income in 108)",
-    108: "Fisher HIGH from 107 surge; policies sustained",
-    109: "Fisher LOW; steady profession trends",
-    110: "Fisher LOW + sturgeon surge (income in 111)"
+    106: "Fisher LOW; Prestige-101 +2.5 %; Wind −3.0 %; Displeasure −0.5 %",
+    107: "Fisher LOW; Surge event; Wind −3.0 %; Displeasure −1.0 %; Prestige-106 +0.8 %",
+    108: "Fisher HIGH (107 surge); Wind −3.0 %; Displeasure −1.5 %; Prestige-106 +1.5 %",
+    109: "Fisher LOW; Wind −3.0 %; Displeasure −1.5 %; Prestige-106 +2.2 %",
+    110: "Fisher LOW; Surge event; Wind −3.0 %; Displeasure −1.0 %; Prestige-106 +2.8 %"
 }
 
-print(f"{'Year':<6}{'GDP':>15}{'YoY Chg':>10}  Notes")
-print("-" * 70)
-print(f"{'105':<6}{ACTUAL_GDP[105]:>15,.2f}{'':>10}  Actual (baseline)")
+policy_mults = {106: policy_106, 107: policy_107, 108: policy_108, 109: policy_109, 110: policy_110}
+
+print(f"{'Year':<6}{'GDP':>15}{'YoY Chg':>10}{'Policy×':>10}  Notes")
+print("-" * 78)
+print(f"{'105':<6}{ACTUAL_GDP[105]:>15,.2f}{'':>10}{'1.0000':>10}  Actual (baseline)")
 
 prev = ACTUAL_GDP[105]
 for year in range(106, 111):
-    gdp = new_forecasts[year]
-    chg = ((gdp - prev) / prev) * 100
-    print(f"{year:<6}{gdp:>15,.2f}{chg:>+9.1f}%  {notes_106_110[year]}")
+    gdp  = new_forecasts[year]
+    chg  = ((gdp - prev) / prev) * 100
+    pm   = policy_mults[year]
+    print(f"{year:<6}{gdp:>15,.2f}{chg:>+9.1f}%{pm:>10.4f}  {notes_106_110[year]}")
     prev = gdp
 
-print("-" * 70)
-print("\nConfidence notes:")
+# --- profession-level forecasts 105-110 ---
+print("\n" + "=" * 70)
+print("YEARS 105-110: PROFESSION TOTAL INCOME (105 actual / 106-110 forecast)")
+print("=" * 70)
+
+forecast_profs = {
+    105: {'fisher': fisher_105_est, 'farmer': farmer_105_est, 'craftsman': craftsman_105_est,
+          'service provider': service_105_est, 'civil servant': civil_105_est,
+          'retired': retired_105_est, 'homemaker': homemaker_105_est,
+          'unemployed': unemployed_105_est, 'new entrants': 0},
+    106: {'fisher': fisher_106, 'farmer': farmer_106, 'craftsman': craftsman_106,
+          'service provider': service_106, 'civil servant': civil_106,
+          'retired': retired_106, 'homemaker': hm_income_106,
+          'unemployed': unemp_106, 'new entrants': cum_ent_106},
+    107: {'fisher': fisher_107, 'farmer': farmer_107, 'craftsman': craftsman_107,
+          'service provider': service_107, 'civil servant': civil_107,
+          'retired': retired_107, 'homemaker': hm_income_107,
+          'unemployed': unemp_107, 'new entrants': cum_ent_107},
+    108: {'fisher': fisher_108, 'farmer': farmer_108, 'craftsman': craftsman_108,
+          'service provider': service_108, 'civil servant': civil_108,
+          'retired': retired_108, 'homemaker': hm_income_108,
+          'unemployed': unemp_108, 'new entrants': cum_ent_108},
+    109: {'fisher': fisher_109, 'farmer': farmer_109, 'craftsman': craftsman_109,
+          'service provider': service_109, 'civil servant': civil_109,
+          'retired': retired_109, 'homemaker': hm_income_109,
+          'unemployed': unemp_109, 'new entrants': cum_ent_109},
+    110: {'fisher': fisher_110, 'farmer': farmer_110, 'craftsman': craftsman_110,
+          'service provider': service_110, 'civil servant': civil_110,
+          'retired': retired_110, 'homemaker': hm_income_110,
+          'unemployed': unemp_110, 'new entrants': cum_ent_110},
+}
+
+prof_order = ['fisher', 'farmer', 'craftsman', 'service provider', 'civil servant',
+              'retired', 'homemaker', 'unemployed', 'new entrants']
+print(f"{'Profession':<20}", end="")
+for y in range(105, 111):
+    print(f"{y:>12}", end="")
+print()
+print("-" * 92)
+for prof in prof_order:
+    print(f"{prof:<20}", end="")
+    for y in range(105, 111):
+        print(f"{forecast_profs[y].get(prof, 0):>12,.0f}", end="")
+    print()
+print("-" * 92)
+print(f"{'Prof subtotal':<20}", end="")
+for y in range(105, 111):
+    print(f"{sum(forecast_profs[y].values()):>12,.0f}", end="")
+print()
+
+# --- policy multiplier breakdown ---
+print("\n" + "=" * 70)
+print("POLICY MULTIPLIER BREAKDOWN (Years 106-110)")
+print("=" * 70)
+print(f"{'Year':<6}{'Prestige-101':>14}{'Wind Drag':>12}{'Displeasure':>13}{'Prestige-106':>14}{'Combined':>12}")
+print("-" * 73)
+for y in range(106, 111):
+    p101  = PRESTIGE_101_CARRYOVER.get(y, 0.0)
+    wind  = WIND_TRANSITION_DRAG
+    disp  = WIND_DISPLEASURE_DRAG.get(y, 0.0)
+    p106  = PRESTIGE_106_BOOST.get(y, 0.0)
+    combo = (1 + p101) * (1 + wind) * (1 + disp) * (1 + p106)
+    print(f"{y:<6}{p101:>+13.1%}{wind:>+11.1%}{disp:>+12.1%}{p106:>+13.1%}{combo:>+11.2%}")
+
+# --- homemaker-to-workforce detail ---
+print("\n  Dual-Income Household Transition (homemakers → workforce):")
+print(f"  {'Year':<6}{'HM count':>10}{'Leaving':>10}{'New ent. inc':>14}{'Cum. ent. inc':>14}")
+print("  " + "-" * 56)
+hm_data = [(106, hm_cnt_106, hm_lv_106, cum_ent_106),
+           (107, hm_cnt_107, hm_lv_107, cum_ent_107),
+           (108, hm_cnt_108, hm_lv_108, cum_ent_108),
+           (109, hm_cnt_109, hm_lv_109, cum_ent_109),
+           (110, hm_cnt_110, hm_lv_110, cum_ent_110)]
+for y, cnt, lv, cum in hm_data:
+    print(f"  {y:<6}{cnt:>9.1f}{lv:>9.2f}{lv * NEW_ENTRANT_INCOME:>13,.0f}{cum:>13,.0f}")
+
+print("\n" + "=" * 70)
+print("Confidence notes:")
 print("  - Sturgeon cycle confirmed shifted; surges at 101,104,107,110")
 print("  - If cycle drifts +1yr: HIGH moves to 109 instead of 108")
 print("  - No disaster events modelled (next locust est. Year 120+)")
-print("  - All professions tracked; retired recovering from policy shock")
+print("  - Wind transition: −3 % GDP p.a. is the dominant drag; partially")
+print("    offset by Prestige-106 ramp from Year 107 onward")
+print("  - Resident displeasure adds −0.5…−1.5 % on top of transition drag;")
+print("    channels: tourism decline, civic morale, productivity loss")
+print("  - Homemaker exit adds ~$6-7 k/yr in new income (small vs GDP)")
 print("  - Weather assumed normal beyond 105 (no data available)")
 print("  - Growth rates derived from 100→105 actual profession totals")
-print("\n" + "=" * 70)
+print("=" * 70)
