@@ -42,9 +42,9 @@ with open('gdp_island', 'r') as f:
     for row in reader:
         gdp_data[int(row['year'])] = float(row['gdp'])
 
-# Load profession income by year
+# Load profession income by year from Year 110 data
 profession_income = {}
-with open('population_year105.csv', 'r') as f:
+with open('population_hage_island_year110.csv', 'r') as f:
     reader = csv.DictReader(f)
     for row in reader:
         year = int(row['year'])
@@ -54,17 +54,22 @@ with open('population_year105.csv', 'r') as f:
             profession_income[year] = {}
         profession_income[year][prof] = profession_income[year].get(prof, 0) + income
 
-# Load population data
+# Load population data from Year 110 data
 from collections import defaultdict
+import numpy as np
 population = defaultdict(int)
 workforce = defaultdict(lambda: defaultdict(int))
-with open('population_year105.csv', 'r') as f:
+individual_incomes = defaultdict(list)  # For percentile calculations
+with open('population_hage_island_year110.csv', 'r') as f:
     reader = csv.DictReader(f)
     for row in reader:
         year = int(row['year'])
         prof = row['profession']
+        income = float(row['income'])
         population[year] += 1
         workforce[year][prof] += 1
+        if income > 0:  # Only include positive incomes for percentile calc
+            individual_incomes[year].append(income)
 
 # Population statistics for Year 100
 pop_100 = population[100]
@@ -333,10 +338,15 @@ forecasts = {
 
 ACTUAL_GDP = {
     101: 972000.46,
-    102: 989644.00,
-    103: 882950.00,
+    102: 989644.08,
+    103: 882950.35,
     104: 1015955.20,
-    105: 1168436.60
+    105: 1168436.60,
+    106: 1007133.96,
+    107: 906980.26,
+    108: 1045563.02,
+    109: 942731.97,
+    110: 946912.70
 }
 
 # =============================================================================
@@ -750,3 +760,423 @@ print("  - Homemaker exit adds ~$6-7 k/yr in new income (small vs GDP)")
 print("  - Weather assumed normal beyond 105 (no data available)")
 print("  - Growth rates derived from 100→105 actual profession totals")
 print("=" * 70)
+
+# =============================================================================
+# POST-MORTEM: YEARS 106-110 FORECAST VS ACTUAL
+# =============================================================================
+print("\n" + "=" * 70)
+print("YEARS 106-110: FORECAST vs ACTUAL (Post-Mortem)")
+print("=" * 70)
+print(f"{'Year':<6}{'Forecast':>14}{'Actual':>14}{'Fcst Err':>10}{'Act YoY':>10}")
+print("-" * 70)
+
+prev_actual = ACTUAL_GDP[105]
+for year in range(106, 111):
+    fcast = new_forecasts[year]
+    actual = ACTUAL_GDP[year]
+    err = ((actual - fcast) / fcast) * 100
+    yoy = ((actual - prev_actual) / prev_actual) * 100
+    print(f"{year:<6}{fcast:>14,.0f}{actual:>14,.0f}{err:>+9.1f}%{yoy:>+9.1f}%")
+    prev_actual = actual
+
+print("-" * 70)
+print("  106: Wind transition drag + prestige carryover; fisher LOW")
+print("  107: DROUGHT hit farmers hard (-67% income); fisher LOW")
+print("  108: Farmer partial recovery; fisher HIGH (107 surge)")
+print("  109: Continued recovery; fisher LOW")
+print("  110: Farmer stabilizing; fisher LOW (surge year)")
+
+# =============================================================================
+# YEARS 106-110: PROFESSION ACTUALS (from population_hage_island_year110.csv)
+# =============================================================================
+print("\n" + "=" * 70)
+print("YEARS 106-110: PROFESSION TOTAL INCOME (actuals)")
+print("=" * 70)
+prof_keys_new = ['farmer', 'fisher', 'craftsman', 'service provider', 'civil servant',
+                 'retired', 'homemaker', 'unemployed']
+print(f"{'Profession':<20}", end="")
+for y in range(106, 111):
+    print(f"{y:>12}", end="")
+print()
+print("-" * 80)
+for prof in prof_keys_new:
+    print(f"{prof:<20}", end="")
+    for y in range(106, 111):
+        print(f"{profession_income[y].get(prof, 0):>12,.0f}", end="")
+    print()
+print("-" * 80)
+print(f"{'TOTAL GDP':<20}", end="")
+for y in range(106, 111):
+    print(f"{sum(profession_income[y].values()):>12,.0f}", end="")
+print()
+
+# =============================================================================
+# RECALIBRATED PARAMETERS FROM YEARS 106-110 ACTUALS
+# =============================================================================
+# Sturgeon cycle confirmed: surges at 101, 104, 107, 110
+#   HIGH income (1-yr lag): 102, 105, 108, 111...
+#   Fisher HIGH avg declining: 4256(102), 4143(105), 3978(108)
+#   Fisher LOW avg: ~2400-2500
+FISHER_HIGH_AVG_110 = (profession_income[102]['fisher']/workforce[102]['fisher'] +
+                       profession_income[105]['fisher']/workforce[105]['fisher'] +
+                       profession_income[108]['fisher']/workforce[108]['fisher']) / 3  # ~4125
+FISHER_LOW_AVG_110 = (profession_income[106]['fisher']/workforce[106]['fisher'] +
+                      profession_income[107]['fisher']/workforce[107]['fisher'] +
+                      profession_income[109]['fisher']/workforce[109]['fisher'] +
+                      profession_income[110]['fisher']/workforce[110]['fisher']) / 4  # ~2400
+
+# Drought pattern: Year 107 was a severe drought (-67% farmer income)
+# Historical drought years: 3,7,10,17,24,31,38,42-43,45,52,59,62,66,73,80,83-84,87,94,107
+# Pattern: ~7 year cycle. Next drought expected around 114-117
+DROUGHT_FARMER_DAMAGE = -0.67  # 67% income loss during drought year
+
+# Profession growth rates recalibrated from 105→110 actuals
+# Craftsman: 253,394 → 212,465 (declined due to economic conditions)
+# Service: 225,830 → 219,522 (slight decline)
+# Civil servant: 185,584 → 195,683 (continued growth)
+CRAFTSMAN_GROWTH_110 = -0.003   # slight decline
+SERVICE_GROWTH_110 = -0.005     # slight decline
+CIVIL_SERVANT_GROWTH_110 = 0.011  # still growing
+FARMER_GROWTH_110 = 0.005  # recovery growth (post-drought)
+
+# =============================================================================
+# NEW POLICIES FOR YEARS 111-116
+# =============================================================================
+
+# (E) Community Center (Year 111, effects for 5 years following: 112-116)
+#     Benefits: Improved social cohesion, mental health, civic engagement
+#     Channels: Increased happiness → productivity, reduced crime, better health
+#     Effect: +1.5% GDP boost, ramping up over time
+COMMUNITY_CENTER_BOOST = {
+    112: 0.008,   # Initial community programs begin
+    113: 0.012,   # Programs mature, participation grows
+    114: 0.015,   # Peak community engagement
+    115: 0.015,   # Sustained benefits
+    116: 0.015    # Sustained benefits
+}
+
+# (F) Public Sports Facilities (Year 111)
+#     Benefits: Health improvement, youth development, tourism potential
+#     Channels: Reduced healthcare costs, increased productivity, community pride
+#     Effect: +1% GDP in year of construction (jobs), +0.8% ongoing
+SPORTS_FACILITIES_BOOST = {
+    111: 0.010,   # Construction jobs + initial enthusiasm
+    112: 0.008,   # Programs established
+    113: 0.008,   # Ongoing benefits
+    114: 0.008,   # Sustained
+    115: 0.008,   # Sustained
+    116: 0.008    # Sustained
+}
+
+# (G) Drought Resistant Crops (Years 114-115)
+#     Based on historical analysis: droughts occur ~every 7 years
+#     Year 107 drought caused 67% farmer income loss
+#     Next drought expected around 114-117
+#     Effect: Reduces drought damage by 50% when drought occurs
+#     Implementation cost: -0.5% GDP during transition years
+DROUGHT_CROPS_COST = {
+    114: -0.005,  # Transition cost - new seeds, training
+    115: -0.005   # Continued transition
+}
+DROUGHT_CROPS_PROTECTION = 0.50  # Reduces drought damage by 50%
+
+# (G2) Farmer Resistance to Drought-Resistant Crops
+#      Channels: Skepticism of new varieties, preference for traditional methods,
+#      concerns about taste/quality, learning curve, fear of seed dependency
+#      Effect: Reduces farmer productivity during adoption period
+#      Adoption curve: High resistance initially, decreasing as benefits observed
+FARMER_CROP_RESISTANCE = {
+    114: -0.08,   # Year 1: High resistance - 8% farmer income reduction
+                  # (distrust, learning new techniques, partial adoption ~40%)
+    115: -0.04,   # Year 2: Moderate resistance - 4% reduction
+                  # (early adopters show results, adoption ~65%)
+    116: -0.01,   # Year 3: Low resistance - 1% reduction
+                  # (widespread acceptance, adoption ~85%)
+    117: 0.00     # Year 4+: Resistance fades, full adoption
+}
+
+# (H) Tax Redistribution (Years 111-115)
+#     Taxes raised 10% for income over 75th percentile
+#     Channels: May reduce high earner productivity/investment
+#     GDP impact: -1.5% initially, adapting over time
+#     Social benefit: Improved public services (captured in community center effect)
+TAX_REDISTRIBUTION_DRAG = {
+    111: -0.015,  # Initial drag as high earners adjust
+    112: -0.012,  # Partial adaptation
+    113: -0.010,  # Further adaptation
+    114: -0.008,  # Continued adaptation
+    115: -0.008   # Stabilized drag
+}
+
+# Calculate 75th percentile income for reference
+p75_income_110 = np.percentile(individual_incomes[110], 75) if individual_incomes[110] else 4000
+
+# (D) Prestige Project 106 continuation (effects through Year 111)
+#     Reduced from 3% to 1.5% - residual benefits taper more quickly
+PRESTIGE_106_BOOST_EXT = {111: 0.015}  # Final year of prestige-106 (tapered)
+
+# Wind transition ends after Year 110
+WIND_TRANSITION_ENDS = 110
+
+# =============================================================================
+# YEAR 110 ACTUALS (baselines for Year 111+ forecast)
+# =============================================================================
+fisher_110_act = profession_income[110]['fisher']
+farmer_110_act = profession_income[110]['farmer']
+craftsman_110_act = profession_income[110]['craftsman']
+service_110_act = profession_income[110]['service provider']
+civil_110_act = profession_income[110]['civil servant']
+retired_110_act = profession_income[110].get('retired', 35000)
+homemaker_110_act = profession_income[110].get('homemaker', -18000)
+unemployed_110_act = profession_income[110].get('unemployed', -5000)
+fisher_count_110 = workforce[110]['fisher']
+
+# Retired projection continues
+RETIRED_PROJ_EXT = {111: 36000, 112: 38000, 113: 40000, 114: 42000, 115: 44000, 116: 46000}
+
+# Population productivity (stable growth)
+POP_PRODUCTIVITY_111 = {111: 1.001, 112: 1.001, 113: 1.001, 114: 1.001, 115: 1.001, 116: 1.001}
+
+# Homemaker tracking continues
+hm_count_110_act = workforce[110].get('homemaker', 40)
+
+# =============================================================================
+# YEARS 111-116: FORECAST (New policies active)
+# =============================================================================
+# Sturgeon cycle: 110 surge → 111 HIGH, 112 LOW, 113 LOW (surge), 114 HIGH, 115 LOW, 116 LOW (surge)
+# Drought projection: Possible drought around 114-117 (using 115 as estimate)
+
+# --- Year 111: Fisher HIGH (110 surge), Tax redistribution starts ---
+fisher_111 = FISHER_HIGH_AVG_110 * fisher_count_110
+farmer_111 = farmer_110_act * (1 + FARMER_GROWTH_110)
+craftsman_111 = craftsman_110_act * (1 + CRAFTSMAN_GROWTH_110)
+service_111 = service_110_act * (1 + SERVICE_GROWTH_110)
+civil_111 = civil_110_act * (1 + CIVIL_SERVANT_GROWTH_110)
+retired_111 = RETIRED_PROJ_EXT[111]
+hm_count_111 = hm_count_110_act * (1 - HOMEMAKER_EXIT_RATE)
+hm_income_111 = homemaker_110_act * (1 + HOME_UNEMP_GROWTH) * (hm_count_111 / hm_count_110_act)
+unemp_111 = unemployed_110_act * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_111 = cum_entrant_inc * (1 + ENTRANT_GROWTH) + (hm_count_110_act - hm_count_111) * NEW_ENTRANT_INCOME
+
+prof_sum_111 = (fisher_111 + farmer_111 + craftsman_111 + service_111 + civil_111 +
+                retired_111 + hm_income_111 + unemp_111 + cum_entrant_111)
+policy_111 = ((1 + PRESTIGE_106_BOOST_EXT.get(111, 0)) *
+              (1 + SPORTS_FACILITIES_BOOST.get(111, 0)) *
+              (1 + TAX_REDISTRIBUTION_DRAG.get(111, 0)))
+gdp_111 = prof_sum_111 * POP_PRODUCTIVITY_111[111] * policy_111
+
+# --- Year 112: Fisher LOW, Community center starts ---
+fisher_112 = FISHER_LOW_AVG_110 * fisher_count_110
+farmer_112 = farmer_111 * (1 + FARMER_GROWTH_110)
+craftsman_112 = craftsman_111 * (1 + CRAFTSMAN_GROWTH_110)
+service_112 = service_111 * (1 + SERVICE_GROWTH_110)
+civil_112 = civil_111 * (1 + CIVIL_SERVANT_GROWTH_110)
+retired_112 = RETIRED_PROJ_EXT[112]
+hm_count_112 = hm_count_111 * (1 - HOMEMAKER_EXIT_RATE)
+hm_income_112 = hm_income_111 * (1 + HOME_UNEMP_GROWTH) * (hm_count_112 / hm_count_111)
+unemp_112 = unemp_111 * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_112 = cum_entrant_111 * (1 + ENTRANT_GROWTH) + (hm_count_111 - hm_count_112) * NEW_ENTRANT_INCOME
+
+prof_sum_112 = (fisher_112 + farmer_112 + craftsman_112 + service_112 + civil_112 +
+                retired_112 + hm_income_112 + unemp_112 + cum_entrant_112)
+policy_112 = ((1 + COMMUNITY_CENTER_BOOST.get(112, 0)) *
+              (1 + SPORTS_FACILITIES_BOOST.get(112, 0)) *
+              (1 + TAX_REDISTRIBUTION_DRAG.get(112, 0)))
+gdp_112 = prof_sum_112 * POP_PRODUCTIVITY_111[112] * policy_112
+
+# --- Year 113: Fisher LOW (surge year), Tax redistribution final year ---
+fisher_113 = FISHER_LOW_AVG_110 * fisher_count_110
+farmer_113 = farmer_112 * (1 + FARMER_GROWTH_110)
+craftsman_113 = craftsman_112 * (1 + CRAFTSMAN_GROWTH_110)
+service_113 = service_112 * (1 + SERVICE_GROWTH_110)
+civil_113 = civil_112 * (1 + CIVIL_SERVANT_GROWTH_110)
+retired_113 = RETIRED_PROJ_EXT[113]
+hm_count_113 = hm_count_112 * (1 - HOMEMAKER_EXIT_RATE)
+hm_income_113 = hm_income_112 * (1 + HOME_UNEMP_GROWTH) * (hm_count_113 / hm_count_112)
+unemp_113 = unemp_112 * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_113 = cum_entrant_112 * (1 + ENTRANT_GROWTH) + (hm_count_112 - hm_count_113) * NEW_ENTRANT_INCOME
+
+prof_sum_113 = (fisher_113 + farmer_113 + craftsman_113 + service_113 + civil_113 +
+                retired_113 + hm_income_113 + unemp_113 + cum_entrant_113)
+policy_113 = ((1 + COMMUNITY_CENTER_BOOST.get(113, 0)) *
+              (1 + SPORTS_FACILITIES_BOOST.get(113, 0)) *
+              (1 + TAX_REDISTRIBUTION_DRAG.get(113, 0)))
+gdp_113 = prof_sum_113 * POP_PRODUCTIVITY_111[113] * policy_113
+
+# --- Year 114: Fisher HIGH (113 surge), Tax ended, Drought crops start ---
+fisher_114 = FISHER_HIGH_AVG_110 * fisher_count_110
+# Apply farmer resistance to drought-resistant crops (Year 1 of adoption)
+farmer_114 = farmer_113 * (1 + FARMER_GROWTH_110) * (1 + FARMER_CROP_RESISTANCE.get(114, 0))
+craftsman_114 = craftsman_113 * (1 + CRAFTSMAN_GROWTH_110)
+service_114 = service_113 * (1 + SERVICE_GROWTH_110)
+civil_114 = civil_113 * (1 + CIVIL_SERVANT_GROWTH_110)
+retired_114 = RETIRED_PROJ_EXT[114]
+hm_count_114 = hm_count_113 * (1 - HOMEMAKER_EXIT_RATE)
+hm_income_114 = hm_income_113 * (1 + HOME_UNEMP_GROWTH) * (hm_count_114 / hm_count_113)
+unemp_114 = unemp_113 * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_114 = cum_entrant_113 * (1 + ENTRANT_GROWTH) + (hm_count_113 - hm_count_114) * NEW_ENTRANT_INCOME
+
+prof_sum_114 = (fisher_114 + farmer_114 + craftsman_114 + service_114 + civil_114 +
+                retired_114 + hm_income_114 + unemp_114 + cum_entrant_114)
+policy_114 = ((1 + COMMUNITY_CENTER_BOOST.get(114, 0)) *
+              (1 + SPORTS_FACILITIES_BOOST.get(114, 0)) *
+              (1 + DROUGHT_CROPS_COST.get(114, 0)) *
+              (1 + TAX_REDISTRIBUTION_DRAG.get(114, 0)))
+gdp_114 = prof_sum_114 * POP_PRODUCTIVITY_111[114] * policy_114
+
+# --- Year 115: Fisher LOW, Drought crops Year 2, POTENTIAL DROUGHT YEAR ---
+# Model drought with 40% probability based on 7-year cycle pattern
+DROUGHT_PROBABILITY_115 = 0.40
+fisher_115 = FISHER_LOW_AVG_110 * fisher_count_110
+# Drought scenario: farmer income -67%, mitigated by 50% due to drought-resistant crops
+# Apply farmer resistance Year 2 (reduced from Year 1), adjusting for prior year's resistance
+farmer_115_base = farmer_114 / (1 + FARMER_CROP_RESISTANCE.get(114, 0))  # Remove Year 1 resistance
+farmer_115_no_drought = farmer_115_base * (1 + FARMER_GROWTH_110) * (1 + FARMER_CROP_RESISTANCE.get(115, 0))
+farmer_115_with_drought = farmer_115_base * (1 + DROUGHT_FARMER_DAMAGE) * (1 + DROUGHT_CROPS_PROTECTION * 0.67) * (1 + FARMER_CROP_RESISTANCE.get(115, 0))
+# Use expected value: weighted average
+farmer_115 = farmer_115_no_drought * (1 - DROUGHT_PROBABILITY_115) + farmer_115_with_drought * DROUGHT_PROBABILITY_115
+craftsman_115 = craftsman_114 * (1 + CRAFTSMAN_GROWTH_110)
+service_115 = service_114 * (1 + SERVICE_GROWTH_110)
+civil_115 = civil_114 * (1 + CIVIL_SERVANT_GROWTH_110)
+retired_115 = RETIRED_PROJ_EXT[115]
+hm_count_115 = hm_count_114 * (1 - HOMEMAKER_EXIT_RATE)
+hm_income_115 = hm_income_114 * (1 + HOME_UNEMP_GROWTH) * (hm_count_115 / hm_count_114)
+unemp_115 = unemp_114 * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_115 = cum_entrant_114 * (1 + ENTRANT_GROWTH) + (hm_count_114 - hm_count_115) * NEW_ENTRANT_INCOME
+
+prof_sum_115 = (fisher_115 + farmer_115 + craftsman_115 + service_115 + civil_115 +
+                retired_115 + hm_income_115 + unemp_115 + cum_entrant_115)
+policy_115 = ((1 + COMMUNITY_CENTER_BOOST.get(115, 0)) *
+              (1 + SPORTS_FACILITIES_BOOST.get(115, 0)) *
+              (1 + DROUGHT_CROPS_COST.get(115, 0)) *
+              (1 + TAX_REDISTRIBUTION_DRAG.get(115, 0)))
+gdp_115 = prof_sum_115 * POP_PRODUCTIVITY_111[115] * policy_115
+
+# --- Year 116: Fisher LOW (surge year), Drought crops mature ---
+fisher_116 = FISHER_LOW_AVG_110 * fisher_count_110
+# Farmer resistance decreases in Year 2; recovery boost if drought occurred in 115
+farmer_116 = farmer_115 * (1 + FARMER_GROWTH_110) * 1.10 * (1 + FARMER_CROP_RESISTANCE.get(116, 0)) / (1 + FARMER_CROP_RESISTANCE.get(115, 0))  # Adjust for changing resistance
+craftsman_116 = craftsman_115 * (1 + CRAFTSMAN_GROWTH_110)
+service_116 = service_115 * (1 + SERVICE_GROWTH_110)
+civil_116 = civil_115 * (1 + CIVIL_SERVANT_GROWTH_110)
+retired_116 = RETIRED_PROJ_EXT[116]
+hm_count_116 = hm_count_115 * (1 - HOMEMAKER_EXIT_RATE)
+hm_income_116 = hm_income_115 * (1 + HOME_UNEMP_GROWTH) * (hm_count_116 / hm_count_115)
+unemp_116 = unemp_115 * (1 + HOME_UNEMP_GROWTH)
+cum_entrant_116 = cum_entrant_115 * (1 + ENTRANT_GROWTH) + (hm_count_115 - hm_count_116) * NEW_ENTRANT_INCOME
+
+prof_sum_116 = (fisher_116 + farmer_116 + craftsman_116 + service_116 + civil_116 +
+                retired_116 + hm_income_116 + unemp_116 + cum_entrant_116)
+policy_116 = ((1 + COMMUNITY_CENTER_BOOST.get(116, 0)) *
+              (1 + SPORTS_FACILITIES_BOOST.get(116, 0)) *
+              (1 + DROUGHT_CROPS_COST.get(116, 0)))
+gdp_116 = prof_sum_116 * POP_PRODUCTIVITY_111[116] * policy_116
+
+forecasts_111_115 = {111: gdp_111, 112: gdp_112, 113: gdp_113, 114: gdp_114, 115: gdp_115}
+
+# =============================================================================
+# OUTPUT: YEARS 111-115 FORECAST
+# =============================================================================
+print("\n" + "=" * 80)
+print("YEARS 111-115: FORECAST (New policies active)")
+print("=" * 80)
+
+print("\nNew Policies Enacted in Year 111:")
+print(f"  Public Sports Facilities: Built Year 111; benefits Years 111-115 (+0.8-1.0% GDP)")
+print(f"  Tax Redistribution:      Years 111-115; 10% increase on >75th percentile income")
+print(f"                           (75th percentile in Year 110: ${p75_income_110:,.0f})")
+print(f"  Drought Resistant Crops: Implemented Years 114-115; -0.5% transition cost")
+print(f"                           50% protection against drought damage")
+print(f"  Farmer Resistance:       Year 114: -8% farmer income (adoption ~40%)")
+print(f"                           Year 115: -4% farmer income (adoption ~65%)")
+
+notes_111_115 = {
+    111: "Fisher HIGH (110 surge); Prestige-106 +1.5%; Sports +1%; Tax drag -1.5%",
+    112: "Fisher LOW; Community center +0.8%; Sports +0.8%; Tax drag -1.2%",
+    113: "Fisher LOW (surge); Community +1.2%; Sports +0.8%; Tax drag -1.0%",
+    114: "Fisher HIGH (113 surge); Community +1.5%; Sports +0.8%; Tax drag -0.8%; Drought crops -0.5%; Farmer resistance -8%",
+    115: "Fisher LOW; Tax drag -0.8%; Drought crops -0.5%; Farmer resistance -4%; Drought risk 40%"
+}
+
+print(f"\n{'Year':<6}{'GDP Forecast':>15}{'YoY Chg':>10}  Notes")
+print("-" * 95)
+print(f"{'110':<6}{ACTUAL_GDP[110]:>15,.2f}{'':>10}  Actual (baseline)")
+
+prev = ACTUAL_GDP[110]
+for year in range(111, 116):
+    gdp_f = forecasts_111_115[year]
+    chg = ((gdp_f - prev) / prev) * 100
+    print(f"{year:<6}{gdp_f:>15,.2f}{chg:>+9.1f}%  {notes_111_115[year]}")
+    prev = gdp_f
+
+# --- Policy multiplier breakdown 111-115 ---
+print("\n" + "=" * 80)
+print("POLICY MULTIPLIER BREAKDOWN (Years 111-115)")
+print("=" * 80)
+print(f"{'Year':<6}{'Prestige-106':>13}{'Community':>11}{'Sports':>10}{'Tax Drag':>11}{'Drought':>10}{'Combined':>12}")
+print("-" * 80)
+for y in range(111, 116):
+    p106 = PRESTIGE_106_BOOST_EXT.get(y, 0.0)
+    comm = COMMUNITY_CENTER_BOOST.get(y, 0.0)
+    sport = SPORTS_FACILITIES_BOOST.get(y, 0.0)
+    tax = TAX_REDISTRIBUTION_DRAG.get(y, 0.0)
+    drought = DROUGHT_CROPS_COST.get(y, 0.0)
+    combo = (1 + p106) * (1 + comm) * (1 + sport) * (1 + tax) * (1 + drought)
+    print(f"{y:<6}{p106:>+12.1%}{comm:>+10.1%}{sport:>+9.1%}{tax:>+10.1%}{drought:>+9.1%}{combo:>+11.2%}")
+
+# --- Drought-resistant crops analysis ---
+print("\n" + "=" * 80)
+print("DROUGHT-RESISTANT CROPS ANALYSIS")
+print("=" * 80)
+print("\nHistorical Drought Years (farmer avg income <$1000):")
+print("  Years: 3, 7, 10, 17, 24, 31, 38, 42-43, 45, 52, 59, 62, 66, 73, 80, 83-84, 87, 94, 107")
+print("  Pattern: ~7 year cycle with clustering")
+print("\nYear 107 Drought Impact:")
+print(f"  Farmer income: ${profession_income[106]['farmer']/workforce[106]['farmer']:,.0f} (106)")
+print(f"              → ${profession_income[107]['farmer']/workforce[107]['farmer']:,.0f} (107 drought)")
+print(f"              → ${profession_income[108]['farmer']/workforce[108]['farmer']:,.0f} (108 recovery)")
+print(f"  Damage: -67% farmer income")
+print("\nNext Drought Projection:")
+print("  Based on 7-year cycle from Year 107: Next drought ~Year 114-117")
+print("  Probability estimate: 40% chance in Year 115")
+print("\nFarmer Resistance to New Crops (adoption curve):")
+print(f"  {'Year':<6}{'Resistance':>12}{'Adoption Rate':>16}{'Channels'}")
+print("  " + "-" * 70)
+for y in [114, 115, 116, 117]:
+    resist = FARMER_CROP_RESISTANCE.get(y, 0)
+    adoption = {114: "~40%", 115: "~65%", 116: "~85%", 117: "~95%"}
+    channels = {
+        114: "High distrust, learning new techniques",
+        115: "Early adopters show success, skepticism fades",
+        116: "Widespread acceptance, proven results",
+        117: "Full adoption, resistance negligible"
+    }
+    print(f"  {y:<6}{resist:>+11.0%}{adoption[y]:>16}  {channels[y]}")
+
+print("\nPolicy Recommendation: ENACT DROUGHT-RESISTANT CROPS")
+print("  - Implementation cost: -0.5% GDP in Years 114-115")
+print("  - Protection: Reduces drought damage by 50%")
+print("  - Farmer resistance: -8% farmer income (Yr 114), -4% (Yr 115)")
+print("    Channels: Skepticism, traditional preferences, learning curve")
+print("  - Expected value: Still positive despite resistance;")
+print("    drought protection value exceeds adoption costs over 3+ years")
+
+print("\n" + "=" * 80)
+print("SUMMARY: 5-YEAR OUTLOOK (Years 111-115)")
+print("=" * 80)
+print(f"\nBaseline GDP (Year 110): ${ACTUAL_GDP[110]:,.2f}")
+print(f"Forecast GDP (Year 115): ${gdp_115:,.2f}")
+total_growth = ((gdp_115 - ACTUAL_GDP[110]) / ACTUAL_GDP[110]) * 100
+print(f"Total Growth: {total_growth:+.1f}%")
+print(f"Annualized Growth: {((gdp_115/ACTUAL_GDP[110])**(1/5) - 1)*100:+.1f}%")
+
+print("\nKey Risks:")
+print("  - Drought in 114-117 window (mitigated by drought-resistant crops)")
+print("  - Farmer resistance to new crops may slow adoption (-8% to -4% farmer income)")
+print("  - Tax redistribution may reduce high-earner investment")
+print("  - Sturgeon cycle volatility (fisher income swings ±70%)")
+print("\nKey Opportunities:")
+print("  - Community center and sports facilities boost social cohesion")
+print("  - Drought-resistant crops provide agricultural resilience")
+print("  - Civil servant sector continues stable growth")
+print("=" * 80)
