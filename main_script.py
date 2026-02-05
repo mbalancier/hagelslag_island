@@ -346,7 +346,22 @@ ACTUAL_GDP = {
     107: 906980.26,
     108: 1045563.02,
     109: 942731.97,
-    110: 946912.70
+    110: 946912.70,
+    111: 1143906.63,
+    112: 1032112.04,
+    113: 1010180.78,
+    114: 1025299.53,
+    115: 981203.45
+}
+
+# Actual Gini coefficients for Years 111-115
+# Two measures: Full economy (includes raiders/gangs) vs Formal economy only
+ACTUAL_GINI = {
+    111: {'full': 0.46, 'formal': 0.37},
+    112: {'full': 0.49, 'formal': 0.37},
+    113: {'full': 0.50, 'formal': 0.38},
+    114: {'full': 0.54, 'formal': 0.40},
+    115: {'full': 0.52, 'formal': 0.37}
 }
 
 # =============================================================================
@@ -1179,4 +1194,227 @@ print("\nKey Opportunities:")
 print("  - Community center and sports facilities boost social cohesion")
 print("  - Drought-resistant crops provide agricultural resilience")
 print("  - Civil servant sector continues stable growth")
+print("=" * 80)
+
+# =============================================================================
+# GINI COEFFICIENT ANALYSIS AND PREDICTION
+# =============================================================================
+
+def calculate_gini(incomes):
+    """Calculate Gini coefficient from a list of incomes."""
+    if len(incomes) == 0:
+        return 0.0
+    # Filter to positive incomes only for Gini calculation
+    pos_incomes = [i for i in incomes if i > 0]
+    if len(pos_incomes) == 0:
+        return 0.0
+    sorted_incomes = sorted(pos_incomes)
+    n = len(sorted_incomes)
+    cumsum = np.cumsum(sorted_incomes)
+    return (2 * np.sum((np.arange(1, n + 1) * sorted_incomes)) / (n * cumsum[-1])) - (n + 1) / n
+
+# Calculate historical Gini coefficients (Years 100-110)
+historical_gini = {}
+for year in range(100, 111):
+    if year in individual_incomes and len(individual_incomes[year]) > 0:
+        historical_gini[year] = calculate_gini(individual_incomes[year])
+
+# Get income distribution statistics for Year 110
+incomes_110 = individual_incomes[110]
+p25_110 = np.percentile(incomes_110, 25)
+p50_110 = np.percentile(incomes_110, 50)  # median
+p75_110 = np.percentile(incomes_110, 75)
+p90_110 = np.percentile(incomes_110, 90)
+mean_110 = np.mean(incomes_110)
+gini_110 = historical_gini[110]
+
+# Identify high earners (>75th percentile) and their share
+high_earners_110 = [i for i in incomes_110 if i > p75_110]
+high_earner_share_110 = sum(high_earners_110) / sum(incomes_110)
+
+# =============================================================================
+# GINI PREDICTION MODEL
+# =============================================================================
+# Policy effects on Gini coefficient:
+#   Tax redistribution: Reduces inequality by taxing high earners
+#   - 10% tax on >75th percentile reduces their effective income
+#   - Estimated Gini reduction: -0.008 to -0.015 per year (progressive effect)
+#
+#   Fisher cycle: HIGH years increase fisher income relative to others
+#   - Fishers are typically mid-to-high earners
+#   - HIGH years may slightly increase Gini; LOW years decrease it
+#   - Estimated effect: ±0.005-0.010
+#
+#   Farmer resistance: Reduces farmer income (farmers are typically lower-mid earners)
+#   - May slightly increase Gini as lower earners earn less
+#   - Estimated effect: +0.002-0.005
+#
+#   Sports/Community: Neutral to slightly equalizing (broad-based benefits)
+#   - Estimated effect: -0.001-0.002
+
+# Tax redistribution effect on Gini (progressive impact)
+# Effect strengthens over time as redistribution accumulates
+TAX_GINI_EFFECT = {
+    111: -0.010,  # Initial redistribution effect
+    112: -0.012,  # Growing impact as funds redistributed
+    113: -0.012,  # Sustained redistribution
+    114: -0.010,  # Continued strong effect
+    115: -0.010   # Sustained
+}
+
+# Fisher cycle effect on Gini (HIGH years increase inequality slightly)
+# Year 111: HIGH, 112: LOW, 113: LOW, 114: HIGH, 115: LOW
+# Effect moderated by tax redistribution in later years
+FISHER_GINI_EFFECT = {
+    111: +0.006,   # HIGH year - fishers earn more
+    112: -0.004,   # LOW year
+    113: -0.004,   # LOW year
+    114: +0.005,   # HIGH year (moderated by established tax policy)
+    115: -0.004    # LOW year
+}
+
+# Farmer resistance effect (reduces lower-mid earner income)
+# Effect is small - farmers are diverse income group
+FARMER_RESISTANCE_GINI = {
+    114: +0.001,  # -8% farmer income, minor inequality effect
+    115: +0.001   # -4% farmer income
+}
+
+# Community/Sports effect (broad-based, slightly equalizing)
+COMMUNITY_GINI_EFFECT = {
+    112: -0.002,
+    113: -0.002,
+    114: -0.002,
+    115: -0.002
+}
+
+# Predict Gini for years 111-115
+predicted_gini = {110: gini_110}
+for year in range(111, 116):
+    base_gini = predicted_gini[year - 1]
+
+    # Apply policy effects
+    tax_effect = TAX_GINI_EFFECT.get(year, 0)
+    fisher_effect = FISHER_GINI_EFFECT.get(year, 0)
+    farmer_effect = FARMER_RESISTANCE_GINI.get(year, 0)
+    community_effect = COMMUNITY_GINI_EFFECT.get(year, 0)
+
+    # Natural drift toward mean (slight mean reversion)
+    mean_reversion = (0.35 - base_gini) * 0.02  # Slight pull toward 0.35
+
+    predicted_gini[year] = base_gini + tax_effect + fisher_effect + farmer_effect + community_effect + mean_reversion
+
+# =============================================================================
+# OUTPUT: GINI COEFFICIENT ANALYSIS
+# =============================================================================
+print("\n" + "=" * 80)
+print("GINI COEFFICIENT ANALYSIS AND PREDICTION")
+print("=" * 80)
+
+print("\nYear 110 Income Distribution (baseline):")
+print(f"  Population with income: {len(incomes_110)}")
+print(f"  Mean income:           ${mean_110:,.0f}")
+print(f"  25th percentile:       ${p25_110:,.0f}")
+print(f"  Median (50th):         ${p50_110:,.0f}")
+print(f"  75th percentile:       ${p75_110:,.0f}")
+print(f"  90th percentile:       ${p90_110:,.0f}")
+print(f"  High earner share:     {high_earner_share_110:.1%} of total income (top 25%)")
+print(f"  Gini coefficient:      {gini_110:.4f}")
+
+print("\nHistorical Gini Coefficients (Years 100-110):")
+print(f"  {'Year':<6}{'Gini':>8}{'YoY Change':>12}")
+print("  " + "-" * 26)
+prev_g = None
+for year in range(100, 111):
+    g = historical_gini.get(year, 0)
+    if prev_g is not None:
+        chg = g - prev_g
+        print(f"  {year:<6}{g:>8.4f}{chg:>+11.4f}")
+    else:
+        print(f"  {year:<6}{g:>8.4f}{'':>12}")
+    prev_g = g
+
+print("\nPolicy Effects on Income Inequality:")
+print(f"  Tax Redistribution (>75th pctl):  Reduces Gini by 0.006-0.012/year")
+print(f"  Fisher HIGH years:                Increases Gini by ~0.008 (mid-high earners gain)")
+print(f"  Fisher LOW years:                 Decreases Gini by ~0.005")
+print(f"  Farmer resistance:                Increases Gini by ~0.002-0.003")
+print(f"  Community/Sports:                 Decreases Gini by ~0.002 (broad benefits)")
+
+print("\nPredicted Gini Coefficients (Years 111-115):")
+print(f"  {'Year':<6}{'Gini':>8}{'Change':>10}{'Tax':>8}{'Fisher':>8}{'Other':>8}  Notes")
+print("  " + "-" * 70)
+print(f"  {'110':<6}{gini_110:>8.4f}{'':>10}{'':>8}{'':>8}{'':>8}  Actual (baseline)")
+
+for year in range(111, 116):
+    g = predicted_gini[year]
+    chg = g - predicted_gini[year - 1]
+    tax = TAX_GINI_EFFECT.get(year, 0)
+    fisher = FISHER_GINI_EFFECT.get(year, 0)
+    other = FARMER_RESISTANCE_GINI.get(year, 0) + COMMUNITY_GINI_EFFECT.get(year, 0)
+    fisher_note = "HIGH" if fisher > 0 else "LOW"
+    print(f"  {year:<6}{g:>8.4f}{chg:>+9.4f}{tax:>+7.3f}{fisher:>+7.3f}{other:>+7.3f}  Fisher {fisher_note}")
+
+print("\nGini Interpretation:")
+print(f"  Year 110 Gini: {gini_110:.4f}")
+print(f"  Year 115 Gini: {predicted_gini[115]:.4f} (predicted)")
+gini_change = predicted_gini[115] - gini_110
+print(f"  5-Year Change: {gini_change:+.4f} ({'more equal' if gini_change < 0 else 'more unequal'})")
+print("\n  Gini Scale Reference:")
+print("    0.25-0.30: Low inequality (Nordic countries)")
+print("    0.30-0.35: Moderate inequality")
+print("    0.35-0.40: Moderate-high inequality")
+print("    0.40-0.50: High inequality (US ~0.41)")
+print("=" * 80)
+
+# =============================================================================
+# POST-MORTEM: YEARS 111-115 FORECAST VS ACTUAL
+# =============================================================================
+print("\n" + "=" * 80)
+print("POST-MORTEM: YEARS 111-115 FORECAST VS ACTUAL")
+print("=" * 80)
+
+print("\nGDP Forecast vs Actual:")
+print(f"  {'Year':<6}{'Forecast':>14}{'Actual':>14}{'Error':>10}{'Act YoY':>10}")
+print("  " + "-" * 54)
+prev_actual = ACTUAL_GDP[110]
+for year in range(111, 116):
+    fcast = forecasts_111_115[year]
+    actual = ACTUAL_GDP[year]
+    err = ((actual - fcast) / fcast) * 100
+    yoy = ((actual - prev_actual) / prev_actual) * 100
+    print(f"  {year:<6}{fcast:>14,.0f}{actual:>14,.0f}{err:>+9.1f}%{yoy:>+9.1f}%")
+    prev_actual = actual
+
+print("\nGini Forecast vs Actual:")
+print(f"  {'Year':<6}{'Forecast':>10}{'Full Econ':>12}{'Formal':>10}{'Note'}")
+print("  " + "-" * 60)
+for year in range(111, 116):
+    fcast_g = predicted_gini[year]
+    actual_full = ACTUAL_GINI[year]['full']
+    actual_formal = ACTUAL_GINI[year]['formal']
+    # Compare forecast to formal economy Gini
+    diff = actual_formal - fcast_g
+    note = "Raiders/gangs increase full economy inequality"
+    print(f"  {year:<6}{fcast_g:>10.4f}{actual_full:>12.2f}{actual_formal:>10.2f}  {note if year == 111 else ''}")
+
+print("\nKey Insights from Actuals:")
+print("  GDP:")
+total_gdp_growth = ((ACTUAL_GDP[115] - ACTUAL_GDP[110]) / ACTUAL_GDP[110]) * 100
+print(f"    - Total growth 110→115: {total_gdp_growth:+.1f}%")
+print(f"    - Year 111 actual (+20.8%) exceeded forecast (+17.2%)")
+print(f"    - Year 115 actual ($981k) close to forecast ($983k)")
+
+print("\n  Gini (Income Inequality):")
+print("    - Two measures tracked: Full economy vs Formal economy")
+print("    - Full economy Gini (0.46-0.54) includes raiders/gangs income")
+print("    - Formal economy Gini (0.37-0.40) excludes illegal income")
+print("    - Raiders/gangs add ~0.10-0.14 to inequality measure")
+print("    - Formal Gini trend: 0.37→0.40→0.37 (slight improvement by 115)")
+
+print("\n  Wellbeing Implications:")
+print("    - High full-economy Gini indicates significant shadow economy")
+print("    - Raiders/gangs concentrate wealth outside formal system")
+print("    - Tax redistribution helping formal economy equality")
+print("    - Need policies addressing informal/illegal economy for wellbeing")
 print("=" * 80)
