@@ -1418,3 +1418,334 @@ print("    - Raiders/gangs concentrate wealth outside formal system")
 print("    - Tax redistribution helping formal economy equality")
 print("    - Need policies addressing informal/illegal economy for wellbeing")
 print("=" * 80)
+
+# =============================================================================
+# YEARS 116-120 FORECAST (New policies)
+# =============================================================================
+# Policies:
+#   (A) Community Center - Taxes raised Year 116, benefits Years 117-121
+#   (B) Security Infrastructure - Years 116-120 (reduces raider impact)
+#   (C) Training Programmes - Year 116 only
+#   (D) Trade Agreement - Year 118
+#
+# Raiders/Gangs:
+#   - Still present on island
+#   - Slightly increase GDP (shadow economy)
+#   - Disrupt happiness
+#   - Security infrastructure reduces their negative impact
+
+# Year 115 actuals as baseline
+GDP_115 = ACTUAL_GDP[115]
+GINI_115_FORMAL = ACTUAL_GINI[115]['formal']
+GINI_115_FULL = ACTUAL_GINI[115]['full']
+
+# Historical happiness baseline (Year 100 avg was ~100)
+HAPPINESS_BASELINE = 100.0
+
+# =============================================================================
+# NEW POLICY PARAMETERS (Years 116-120)
+# =============================================================================
+
+# (A) Community Center - Taxes raised Year 116, benefits Years 117-121
+#     Similar to previous community center but with tax funding
+COMMUNITY_CENTER_TAX = {116: -0.003}  # Modest tax increase to fund community center
+COMMUNITY_CENTER_BENEFIT = {
+    117: 0.010,   # Initial community programs
+    118: 0.012,   # Programs mature
+    119: 0.015,   # Peak engagement
+    120: 0.015    # Sustained benefits
+}
+# Happiness effect from community center
+COMMUNITY_CENTER_HAPPINESS = {
+    117: +2.0,   # New social programs begin
+    118: +3.0,   # Programs mature, participation grows
+    119: +4.0,   # Peak community engagement
+    120: +4.0    # Sustained happiness benefit
+}
+
+# (B) Security Infrastructure - Years 116-120
+#     Reduces raider impact on formal economy and happiness
+SECURITY_INFRASTRUCTURE_COST = -0.005  # Annual cost
+SECURITY_INFRASTRUCTURE_BENEFIT = {
+    116: 0.002,   # Initial deployment
+    117: 0.005,   # Growing effectiveness
+    118: 0.008,   # Full operation
+    119: 0.010,   # Optimized
+    120: 0.010    # Sustained
+}
+# Reduces raider negative impact on happiness
+SECURITY_HAPPINESS_BOOST = {
+    116: +1.0,
+    117: +2.0,
+    118: +3.0,
+    119: +4.0,
+    120: +4.0
+}
+
+# (C) Training Programmes - Year 116 only
+#     One-time boost to workforce productivity
+TRAINING_PROGRAMME_BOOST = {116: 0.018}  # One-time productivity boost
+TRAINING_HAPPINESS = {116: +1.0}  # Slight happiness from new skills
+
+# (D) Trade Agreement - Year 118
+#     Opens new markets, boosts exports
+TRADE_AGREEMENT_BOOST = {
+    118: 0.015,   # Initial trade boost
+    119: 0.020,   # Trade grows
+    120: 0.025    # Mature trade relationship
+}
+TRADE_HAPPINESS = {
+    118: +1.5,   # New goods available
+    119: +2.0,   # More variety
+    120: +2.0    # Sustained
+}
+
+# =============================================================================
+# RAIDER/GANG EFFECTS
+# =============================================================================
+# Raiders slightly increase GDP (shadow economy) but hurt happiness
+# Security infrastructure reduces these effects over time
+
+RAIDER_GDP_BOOST = 0.015  # Raiders add ~1.5% to GDP (shadow economy)
+RAIDER_HAPPINESS_DRAG = {
+    116: -5.0,   # High raider activity
+    117: -4.0,   # Security starting to help
+    118: -3.0,   # Improving
+    119: -2.0,   # Mostly contained
+    120: -2.0    # Residual criminal activity
+}
+# Security infrastructure reduces raider GDP contribution over time
+# (as raiders are pushed out, less shadow economy activity)
+RAIDER_GDP_REDUCTION = {
+    116: 0.0,    # Raiders still active
+    117: -0.003, # Some raiders pushed out
+    118: -0.005, # More leaving
+    119: -0.008, # Significantly reduced
+    120: -0.010  # Most raiders gone
+}
+
+# =============================================================================
+# FISHER CYCLE (continues from established pattern)
+# =============================================================================
+# Surges: 110, 113, 116, 119... -> HIGH income years: 111, 114, 117, 120...
+# Year 116: LOW (surge year), 117: HIGH, 118: LOW, 119: LOW (surge), 120: HIGH
+FISHER_CYCLE_116_120 = {
+    116: 'LOW',   # Surge happens this year
+    117: 'HIGH',  # Post-surge high income
+    118: 'LOW',
+    119: 'LOW',   # Surge happens this year
+    120: 'HIGH'   # Post-surge high income
+}
+
+# Fisher income averages (continuing trend)
+FISHER_HIGH_AVG_115 = 4000  # Slightly declining trend
+FISHER_LOW_AVG_115 = 2350
+
+# =============================================================================
+# GDP FORECAST 116-120
+# =============================================================================
+gdp_forecasts_116_120 = {}
+prev_gdp = GDP_115
+
+for year in range(116, 121):
+    # Base growth from profession trends
+    base_growth = 1.005  # ~0.5% baseline profession growth
+
+    # Fisher cycle effect
+    if FISHER_CYCLE_116_120[year] == 'HIGH':
+        fisher_effect = 0.12  # HIGH years boost GDP ~12%
+    else:
+        fisher_effect = -0.08  # LOW years reduce GDP ~8%
+
+    # Policy effects
+    community_tax = COMMUNITY_CENTER_TAX.get(year, 0)
+    community_benefit = COMMUNITY_CENTER_BENEFIT.get(year, 0)
+    security_cost = SECURITY_INFRASTRUCTURE_COST
+    security_benefit = SECURITY_INFRASTRUCTURE_BENEFIT.get(year, 0)
+    training = TRAINING_PROGRAMME_BOOST.get(year, 0)
+    trade = TRADE_AGREEMENT_BOOST.get(year, 0)
+
+    # Raider effects
+    raider_gdp = RAIDER_GDP_BOOST + RAIDER_GDP_REDUCTION.get(year, 0)
+
+    # Combined policy multiplier
+    policy_mult = (1 + community_tax + community_benefit + security_cost +
+                   security_benefit + training + trade + raider_gdp)
+
+    # Calculate GDP
+    gdp_forecasts_116_120[year] = prev_gdp * base_growth * (1 + fisher_effect) * policy_mult
+    prev_gdp = gdp_forecasts_116_120[year]
+
+# =============================================================================
+# HAPPINESS FORECAST 116-120
+# =============================================================================
+# Happiness scale: 0-100, baseline ~100
+happiness_forecasts = {}
+prev_happiness = HAPPINESS_BASELINE  # Start from baseline
+
+for year in range(116, 121):
+    # Community center effect
+    community_happy = COMMUNITY_CENTER_HAPPINESS.get(year, 0)
+
+    # Security effect
+    security_happy = SECURITY_HAPPINESS_BOOST.get(year, 0)
+
+    # Training effect
+    training_happy = TRAINING_HAPPINESS.get(year, 0)
+
+    # Trade effect
+    trade_happy = TRADE_HAPPINESS.get(year, 0)
+
+    # Raider negative effect
+    raider_drag = RAIDER_HAPPINESS_DRAG.get(year, 0)
+
+    # Fisher cycle effect on happiness (income affects happiness)
+    if FISHER_CYCLE_116_120[year] == 'HIGH':
+        fisher_happy = +1.5  # Higher income = happier
+    else:
+        fisher_happy = -1.0  # Lower income = less happy
+
+    # Economic stability effect (GDP growth affects happiness)
+    gdp_growth = (gdp_forecasts_116_120[year] - (GDP_115 if year == 116 else gdp_forecasts_116_120[year-1])) / (GDP_115 if year == 116 else gdp_forecasts_116_120[year-1])
+    econ_happy = gdp_growth * 10  # 1% GDP growth = +0.1 happiness
+
+    # Calculate happiness (bounded 0-100)
+    total_change = community_happy + security_happy + training_happy + trade_happy + raider_drag + fisher_happy + econ_happy
+    happiness_forecasts[year] = max(0, min(100, prev_happiness + total_change))
+    prev_happiness = happiness_forecasts[year]
+
+# =============================================================================
+# GINI FORECAST 116-120
+# =============================================================================
+# Tracking both formal and full economy Gini
+gini_formal_forecasts = {}
+gini_full_forecasts = {}
+prev_formal = GINI_115_FORMAL
+prev_full = GINI_115_FULL
+
+for year in range(116, 121):
+    # Community center effect (equalizing)
+    community_gini = -0.005 if year >= 117 else 0
+
+    # Security effect (reduces raider inequality in full economy)
+    security_gini_full = -0.015 * (year - 115) / 5  # Gradual reduction
+
+    # Training effect (slightly equalizing - helps lower earners)
+    training_gini = -0.003 if year == 116 else 0
+
+    # Trade effect (mixed - may increase inequality slightly)
+    trade_gini = 0.002 if year >= 118 else 0
+
+    # Fisher cycle effect
+    if FISHER_CYCLE_116_120[year] == 'HIGH':
+        fisher_gini = +0.005
+    else:
+        fisher_gini = -0.004
+
+    # Formal economy Gini
+    gini_formal_forecasts[year] = prev_formal + community_gini + training_gini + trade_gini + fisher_gini
+    prev_formal = gini_formal_forecasts[year]
+
+    # Full economy Gini (includes raider effect, reduced by security)
+    gini_full_forecasts[year] = prev_full + community_gini + training_gini + trade_gini + fisher_gini + security_gini_full
+    prev_full = gini_full_forecasts[year]
+
+# =============================================================================
+# OUTPUT: YEARS 116-120 FORECAST
+# =============================================================================
+print("\n" + "=" * 80)
+print("YEARS 116-120 FORECAST: WELLBEING FOCUS")
+print("=" * 80)
+
+print("\nNew Policies:")
+print("  (A) Community Center:      Tax increase Year 116 (-0.8% GDP)")
+print("                             Benefits Years 117-120 (+1.0-1.5% GDP, +2-4 happiness)")
+print("  (B) Security Infrastructure: All years 116-120 (-0.5% cost, +0.2-1.0% benefit)")
+print("                             Reduces raider impact on happiness (+1-4 pts)")
+print("  (C) Training Programmes:   Year 116 only (+1.2% GDP, +1 happiness)")
+print("  (D) Trade Agreement:       Year 118 onwards (+1.5-2.5% GDP, +1.5-2 happiness)")
+
+print("\nRaider/Gang Effects:")
+print("  - Raiders add ~1.5% to GDP (shadow economy)")
+print("  - Raiders reduce happiness by 2-5 points")
+print("  - Security infrastructure gradually reduces both effects")
+
+print("\n" + "-" * 80)
+print("GDP FORECAST")
+print("-" * 80)
+print(f"  {'Year':<6}{'GDP':>14}{'YoY Chg':>10}{'Fisher':>8}  Notes")
+print("  " + "-" * 60)
+print(f"  {'115':<6}{GDP_115:>14,.0f}{'':>10}{'':>8}  Actual (baseline)")
+
+prev = GDP_115
+for year in range(116, 121):
+    gdp = gdp_forecasts_116_120[year]
+    chg = ((gdp - prev) / prev) * 100
+    fisher = FISHER_CYCLE_116_120[year]
+    notes = []
+    if year == 116: notes.append("Training +1.2%")
+    if year == 116: notes.append("Community tax -0.8%")
+    if year >= 117: notes.append(f"Community +{COMMUNITY_CENTER_BENEFIT.get(year,0)*100:.1f}%")
+    if year >= 118: notes.append(f"Trade +{TRADE_AGREEMENT_BOOST.get(year,0)*100:.1f}%")
+    note_str = "; ".join(notes) if notes else ""
+    print(f"  {year:<6}{gdp:>14,.0f}{chg:>+9.1f}%{fisher:>8}  {note_str}")
+    prev = gdp
+
+print("\n" + "-" * 80)
+print("HAPPINESS FORECAST")
+print("-" * 80)
+print(f"  {'Year':<6}{'Happiness':>10}{'Change':>10}{'Raider':>10}{'Security':>10}")
+print("  " + "-" * 50)
+print(f"  {'115':<6}{HAPPINESS_BASELINE:>10.1f}{'':>10}{'':>10}{'':>10}  Baseline")
+
+for year in range(116, 121):
+    happy = happiness_forecasts[year]
+    chg = happy - (HAPPINESS_BASELINE if year == 116 else happiness_forecasts[year-1])
+    raider = RAIDER_HAPPINESS_DRAG[year]
+    security = SECURITY_HAPPINESS_BOOST[year]
+    print(f"  {year:<6}{happy:>10.1f}{chg:>+9.1f}{raider:>+9.1f}{security:>+9.1f}")
+
+print("\n" + "-" * 80)
+print("GINI COEFFICIENT FORECAST")
+print("-" * 80)
+print(f"  {'Year':<6}{'Formal':>10}{'Full Econ':>12}{'Raider Gap':>12}  Notes")
+print("  " + "-" * 55)
+print(f"  {'115':<6}{GINI_115_FORMAL:>10.2f}{GINI_115_FULL:>12.2f}{GINI_115_FULL-GINI_115_FORMAL:>12.2f}  Actual")
+
+for year in range(116, 121):
+    formal = gini_formal_forecasts[year]
+    full = gini_full_forecasts[year]
+    gap = full - formal
+    notes = "Security reducing gap" if year >= 118 else ""
+    print(f"  {year:<6}{formal:>10.2f}{full:>12.2f}{gap:>12.2f}  {notes}")
+
+print("\n" + "-" * 80)
+print("WELLBEING SUMMARY (Years 116-120)")
+print("-" * 80)
+gdp_growth_total = ((gdp_forecasts_116_120[120] - GDP_115) / GDP_115) * 100
+happiness_change = happiness_forecasts[120] - HAPPINESS_BASELINE
+gini_formal_change = gini_formal_forecasts[120] - GINI_115_FORMAL
+gini_full_change = gini_full_forecasts[120] - GINI_115_FULL
+
+print(f"\n  GDP:")
+print(f"    Year 115: ${GDP_115:,.0f}")
+print(f"    Year 120: ${gdp_forecasts_116_120[120]:,.0f}")
+print(f"    5-Year Growth: {gdp_growth_total:+.1f}%")
+
+print(f"\n  Happiness:")
+print(f"    Year 115: {HAPPINESS_BASELINE:.1f}")
+print(f"    Year 120: {happiness_forecasts[120]:.1f}")
+print(f"    5-Year Change: {happiness_change:+.1f} points")
+
+print(f"\n  Gini (Inequality):")
+print(f"    Formal Economy: {GINI_115_FORMAL:.2f} → {gini_formal_forecasts[120]:.2f} ({gini_formal_change:+.2f})")
+print(f"    Full Economy:   {GINI_115_FULL:.2f} → {gini_full_forecasts[120]:.2f} ({gini_full_change:+.2f})")
+print(f"    Raider Gap:     {GINI_115_FULL-GINI_115_FORMAL:.2f} → {gini_full_forecasts[120]-gini_formal_forecasts[120]:.2f}")
+
+print("\n  Key Findings:")
+print("    - Security infrastructure gradually reduces raider impact")
+print("    - Trade agreement provides sustained GDP growth from Year 118")
+print("    - Community center improves happiness significantly from Year 117")
+print("    - Formal economy inequality stable; full economy gap shrinking")
+print("    - Fisher cycle creates volatility (HIGH years: 117, 120)")
+print("=" * 80)
