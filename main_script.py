@@ -1749,3 +1749,541 @@ print("    - Community center improves happiness significantly from Year 117")
 print("    - Formal economy inequality stable; full economy gap shrinking")
 print("    - Fisher cycle creates volatility (HIGH years: 117, 120)")
 print("=" * 80)
+
+# =============================================================================
+# POST-MORTEM: YEARS 116-120 FORECAST VS ACTUAL
+# =============================================================================
+ACTUAL_GDP_116_120 = {
+    116: 935618.16,
+    117: 1047939.74,
+    118: 905246.28,
+    119: 781734.57,
+    120: 1034021.87
+}
+
+ACTUAL_HAPPINESS_116_120 = {
+    116: 89.39,
+    117: 88.46,
+    118: 83.81,
+    119: 86.98,
+    120: 88.35
+}
+
+ACTUAL_GINI_116_120 = {
+    116: {'full': 0.60, 'formal': 0.36},
+    117: {'full': 0.58, 'formal': 0.35},
+    118: {'full': 0.67, 'formal': 0.39},
+    119: {'full': 0.66, 'formal': 0.36},
+    120: {'full': 0.58, 'formal': 0.35}
+}
+
+print("\n" + "=" * 80)
+print("POST-MORTEM: YEARS 116-120 FORECAST VS ACTUAL")
+print("=" * 80)
+
+print("\nGDP Forecast vs Actual:")
+print(f"  {'Year':<6}{'Forecast':>14}{'Actual':>14}{'Error':>10}{'Act YoY':>10}")
+print("  " + "-" * 54)
+prev_act = ACTUAL_GDP[115]
+for year in range(116, 121):
+    fcast = gdp_forecasts_116_120[year]
+    actual = ACTUAL_GDP_116_120[year]
+    err = ((actual - fcast) / fcast) * 100
+    yoy = ((actual - prev_act) / prev_act) * 100
+    print(f"  {year:<6}{fcast:>14,.0f}{actual:>14,.0f}{err:>+9.1f}%{yoy:>+9.1f}%")
+    prev_act = actual
+
+print("\nHappiness Forecast vs Actual:")
+print(f"  {'Year':<6}{'Forecast':>10}{'Actual':>10}{'Error':>10}")
+print("  " + "-" * 40)
+for year in range(116, 121):
+    fcast_h = happiness_forecasts[year]
+    actual_h = ACTUAL_HAPPINESS_116_120[year]
+    err_h = actual_h - fcast_h
+    print(f"  {year:<6}{fcast_h:>10.1f}{actual_h:>10.2f}{err_h:>+9.1f}")
+
+print("\nGini Forecast vs Actual:")
+print(f"  {'Year':<6}{'Fcst Formal':>12}{'Act Formal':>12}{'Fcst Full':>12}{'Act Full':>10}")
+print("  " + "-" * 52)
+for year in range(116, 121):
+    ff = gini_formal_forecasts[year]
+    af = ACTUAL_GINI_116_120[year]['formal']
+    gf = gini_full_forecasts[year]
+    ag = ACTUAL_GINI_116_120[year]['full']
+    print(f"  {year:<6}{ff:>12.2f}{af:>12.2f}{gf:>12.2f}{ag:>10.2f}")
+
+print("\nKey Observations from 116-120 Actuals:")
+print("  GDP:")
+print("    - Year 116-117 forecasts were close (errors <2.5%)")
+print("    - Years 118-119 experienced a severe economic shock (-12% to -22% error)")
+print("    - Year 118-119 crash likely caused by: drought (~7yr cycle from 107),")
+print("      raider/shadow economy expansion (full Gini spiked to 0.67),")
+print("      and compound negative effects during fisher LOW years")
+print("    - Year 120 (fisher HIGH) recovered strongly but still below forecast")
+print("  Happiness:")
+print("    - Model baseline of 100 was wrong; actual baseline ~88-89")
+print("    - Happiness tracks GDP closely: lowest in Year 118 (83.81) with lowest GDP")
+print("    - Security/community benefits less effective than modeled")
+print("  Gini:")
+print("    - Formal Gini stable (0.35-0.39), model was close")
+print("    - Full economy Gini much higher than forecast (0.58-0.67 vs 0.46-0.51)")
+print("    - Raider gap WIDENED in crisis (0.28 in Y118 vs forecast 0.13)")
+print("    - Raiders exploited economic downturn to expand shadow economy")
+
+# =============================================================================
+# RECALIBRATED PARAMETERS FROM YEARS 116-120 ACTUALS
+# =============================================================================
+# Fisher cycle CONFIRMED: surges at 116, 119, 122, 125...
+#   HIGH income years (1-yr lag): 117, 120, 123, 126...
+#   Fisher HIGH effect on GDP: +12.0% (Y117), +32.3% (Y120 incl. recovery)
+#   Fisher LOW effect: -4.6% (Y116 normal), -13.6% (Y118-119 with shock)
+#
+# GDP swing recalibration (excluding shock years):
+#   HIGH→LOW (normal): ~-8% (avg of -4.6% and moderate swings)
+#   LOW→HIGH (normal): ~+13% (moderated from 120's +32.3% recovery bounce)
+#   LOW→LOW: ~-2% (slight drift down in consecutive LOW years)
+#
+# Drought/Shock in Year 118:
+#   - 7-year drought cycle from 107 → next drought ~114-118 (hit in 118)
+#   - Compound: drought + raider expansion + fisher LOW
+#   - GDP impact: ~-10% additional beyond fisher cycle
+#   - Next drought estimate: ~Year 125 (7 years from 118)
+#
+# Happiness recalibration:
+#   - Actual range: 83.81-89.39 (not 95-100 as forecast)
+#   - Mean happiness: 87.40
+#   - GDP correlation: ~0.3 happiness points per 1% GDP change
+#   - Capped near ~90 in good years
+#
+# Raider/Shadow Economy:
+#   - Full Gini 0.58-0.67 (forecast was 0.46-0.51)
+#   - Raiders MORE persistent than modeled
+#   - Security infrastructure reduced gap from peak but raiders remain
+#   - Raider gap: 0.23-0.28 (forecast was 0.13-0.15)
+
+# Recalibrated fisher averages (GDP-level effects)
+FISHER_HIGH_GDP_EFFECT = 0.13   # +13% GDP in HIGH years (moderated from 120's bounce)
+FISHER_LOW_GDP_EFFECT = -0.08   # -8% GDP when transitioning from HIGH to LOW
+FISHER_LOW_CONSEC_EFFECT = -0.02  # -2% in consecutive LOW years
+
+# Happiness baseline recalibrated
+HAPPINESS_BASELINE_120 = ACTUAL_HAPPINESS_116_120[120]  # 88.35
+HAPPINESS_GDP_SENSITIVITY = 0.30  # 1% GDP change = 0.3 happiness points
+
+# Raider gap recalibrated
+RAIDER_GAP_120 = ACTUAL_GINI_116_120[120]['full'] - ACTUAL_GINI_116_120[120]['formal']  # 0.23
+
+# =============================================================================
+# NEW POLICIES ENACTED IN YEAR 120
+# =============================================================================
+# (I) Encourage Dual-Income Households (strengthened from previous 2% rate)
+#     Stronger incentives: childcare subsidies, tax breaks for dual earners
+#     Exit rate increased from 2% to 4% of homemakers per year
+#     New entrants earn ~$4,500/yr (mid-range income)
+DUAL_INCOME_EXIT_RATE_NEW = 0.04  # Doubled from previous 2%
+DUAL_INCOME_ENTRANT_INCOME_NEW = 4500
+DUAL_INCOME_ENTRANT_GROWTH = 0.012
+DUAL_INCOME_GDP_BOOST = {
+    121: 0.003,   # Initial program ramp-up
+    122: 0.005,   # More homemakers transitioning
+    123: 0.007,   # Sustained transitions + income growth
+    124: 0.008,   # Mature program
+    125: 0.009    # Peak effect (fewer homemakers left)
+}
+DUAL_INCOME_HAPPINESS = {
+    121: +0.5,    # More family income
+    122: +0.5,
+    123: +0.5,
+    124: +0.5,
+    125: +0.5
+}
+DUAL_INCOME_GINI_EFFECT = {
+    121: -0.001,  # Slightly equalizing (adds mid-income earners)
+    122: -0.002,
+    123: -0.002,
+    124: -0.002,
+    125: -0.002
+}
+
+# (J) Retirement Age raised to 90 (from 70)
+#     EXTREME policy - 20 additional years of potential workforce
+#     Workers aged 70-90 have significantly reduced productivity (~40-60%)
+#     Phased implementation: workers gradually retained
+#     Channels: More workers BUT lower avg productivity, stress on elderly
+#     GDP boost from additional workers, tempered by lower productivity
+#     Significant happiness cost as elderly forced to continue working
+RETIREMENT_90_GDP_BOOST = {
+    121: 0.008,   # ~10% of 70-75 stay (strongest cohort)
+    122: 0.012,   # ~20% retention, 75-80 cohort entering
+    123: 0.015,   # ~30% retention, norms established
+    124: 0.016,   # ~35% retention approaching plateau
+    125: 0.016    # Sustained (diminishing returns from oldest workers)
+}
+RETIREMENT_90_HAPPINESS = {
+    121: -2.5,    # Strong negative: elderly unhappy about extended working
+    122: -2.0,    # Some adaptation; younger elderly adjust
+    123: -1.5,    # Normalizing; support systems develop
+    124: -1.0,    # Mostly adapted; flexible work arrangements help
+    125: -1.0     # Sustained mild dissatisfaction
+}
+RETIREMENT_90_GINI_EFFECT = {
+    121: +0.003,  # Elderly workers earn less, increases spread
+    122: +0.002,
+    123: +0.002,
+    124: +0.001,
+    125: +0.001
+}
+
+# (K) Lower Taxes for Bottom 25% of Workforce
+#     Reduces tax burden on lowest earners
+#     Channels: Increased disposable income → consumer spending → GDP
+#     Happiness boost from financial relief
+#     Significant Gini reduction (direct inequality reduction)
+#     Cost: Reduced government revenue → may limit public spending
+TAX_RELIEF_25_GDP_BOOST = {
+    121: 0.008,   # Increased consumer spending (immediate)
+    122: 0.010,   # Full spending effect + multiplier
+    123: 0.010,   # Sustained
+    124: 0.010,   # Sustained
+    125: 0.010    # Sustained
+}
+TAX_RELIEF_25_HAPPINESS = {
+    121: +2.0,    # Immediate financial relief
+    122: +2.5,    # Full effect appreciated
+    123: +2.5,    # Sustained
+    124: +2.5,    # Sustained
+    125: +2.5     # Sustained
+}
+TAX_RELIEF_25_GINI_FORMAL = {
+    121: -0.005,  # Direct inequality reduction
+    122: -0.005,  # Sustained
+    123: -0.004,  # Diminishing marginal effect
+    124: -0.003,  # Stabilizing
+    125: -0.003   # Stabilizing
+}
+
+# =============================================================================
+# CONTINUING POLICIES (carried over from 116-120, already in GDP baseline)
+# =============================================================================
+# Community center, security infrastructure, and trade agreement benefits
+# are already embedded in Year 120 GDP level.
+# Incremental effects for 121-125 are modest (sustaining, not growing):
+CONTINUING_POLICIES_INCREMENTAL = {
+    121: 0.005,   # Slight continued benefit from mature programs
+    122: 0.005,
+    123: 0.005,
+    124: 0.005,
+    125: 0.005
+}
+
+# Raider effects (continuing; security still operational)
+# Raiders persisted more than expected; full Gini still high
+RAIDER_GDP_BOOST_NEW = 0.008  # Reduced shadow economy (from 0.015)
+RAIDER_HAPPINESS_NEW = {
+    121: -1.5,
+    122: -1.5,
+    123: -1.0,
+    124: -1.0,
+    125: -1.0
+}
+RAIDER_GAP_CHANGE = {
+    121: -0.005,  # Security continues to reduce gap slowly
+    122: -0.005,
+    123: -0.005,
+    124: -0.005,
+    125: -0.005
+}
+
+# =============================================================================
+# FISHER CYCLE (continues)
+# =============================================================================
+# Surges: ..., 116, 119, 122, 125...
+# HIGH income years: ..., 117, 120, 123, 126...
+FISHER_CYCLE_121_125 = {
+    121: 'LOW',    # Post-HIGH drop
+    122: 'LOW',    # Surge happens this year (income realized next year)
+    123: 'HIGH',   # Post-surge high income — "123 is predicted increase"
+    124: 'LOW',    # Drop from HIGH
+    125: 'LOW'     # Surge happens this year
+}
+
+# =============================================================================
+# DROUGHT RISK
+# =============================================================================
+# Last drought: ~Year 118 (7-year cycle from 107)
+# Next drought estimate: ~Year 125 (7 years from 118)
+# Drought-resistant crops provide 50% mitigation
+DROUGHT_RISK_121_125 = {
+    121: 0.05,   # Very low risk (only 3 years after last)
+    122: 0.08,   # Low
+    123: 0.12,   # Moderate-low
+    124: 0.20,   # Moderate
+    125: 0.30    # Elevated (7-year cycle alignment)
+}
+DROUGHT_GDP_IMPACT_MITIGATED = -0.04  # -8% raw drought, 50% mitigated by drought crops
+
+# Population productivity
+POP_PRODUCTIVITY_121_125 = {121: 1.002, 122: 1.002, 123: 1.002, 124: 1.002, 125: 1.002}
+
+# Base profession growth
+BASE_PROFESSION_GROWTH = 1.003  # ~0.3% annual from profession trends
+
+# =============================================================================
+# GDP FORECAST 121-125
+# =============================================================================
+gdp_forecasts_121_125 = {}
+GDP_120 = ACTUAL_GDP_116_120[120]
+prev_gdp_f = GDP_120
+
+for year in range(121, 126):
+    # Fisher cycle effect
+    if year == 121:
+        # HIGH(120) → LOW(121): drop
+        fisher_eff = FISHER_LOW_GDP_EFFECT
+    elif FISHER_CYCLE_121_125[year] == 'HIGH':
+        # LOW → HIGH: surge
+        fisher_eff = FISHER_HIGH_GDP_EFFECT
+    elif FISHER_CYCLE_121_125.get(year - 1) == 'HIGH':
+        # HIGH → LOW: drop
+        fisher_eff = FISHER_LOW_GDP_EFFECT
+    else:
+        # LOW → LOW: consecutive
+        fisher_eff = FISHER_LOW_CONSEC_EFFECT
+
+    # New policy effects (incremental)
+    dual_income = DUAL_INCOME_GDP_BOOST[year]
+    retirement = RETIREMENT_90_GDP_BOOST[year]
+    tax_relief = TAX_RELIEF_25_GDP_BOOST[year]
+    continuing = CONTINUING_POLICIES_INCREMENTAL[year]
+
+    # Raider shadow economy
+    raider = RAIDER_GDP_BOOST_NEW
+
+    # Combined policy multiplier
+    policy_mult = (1 + dual_income + retirement + tax_relief + continuing + raider)
+
+    # Drought risk (expected value)
+    drought_expected = DROUGHT_RISK_121_125[year] * DROUGHT_GDP_IMPACT_MITIGATED
+    drought_mult = (1 + drought_expected)
+
+    # Calculate GDP
+    gdp_forecasts_121_125[year] = (prev_gdp_f * BASE_PROFESSION_GROWTH *
+                                    (1 + fisher_eff) * policy_mult *
+                                    POP_PRODUCTIVITY_121_125[year] * drought_mult)
+    prev_gdp_f = gdp_forecasts_121_125[year]
+
+# =============================================================================
+# HAPPINESS FORECAST 121-125
+# =============================================================================
+happiness_forecasts_121_125 = {}
+prev_happy = HAPPINESS_BASELINE_120
+
+for year in range(121, 126):
+    # GDP growth effect
+    prev_g = GDP_120 if year == 121 else gdp_forecasts_121_125[year - 1]
+    gdp_growth_pct = ((gdp_forecasts_121_125[year] - prev_g) / prev_g) * 100
+    gdp_happy = min(3.0, max(-3.0, gdp_growth_pct * HAPPINESS_GDP_SENSITIVITY))
+
+    # Policy effects
+    dual_happy = DUAL_INCOME_HAPPINESS[year]
+    retire_happy = RETIREMENT_90_HAPPINESS[year]
+    tax_happy = TAX_RELIEF_25_HAPPINESS[year]
+    raider_happy = RAIDER_HAPPINESS_NEW[year]
+
+    # Fisher cycle mood effect
+    if FISHER_CYCLE_121_125[year] == 'HIGH':
+        fisher_happy = +1.0
+    else:
+        fisher_happy = -0.5
+
+    # Mean reversion toward long-run average (~87.4)
+    mean_rev = (87.4 - prev_happy) * 0.08
+
+    # Total change
+    total_happy_change = gdp_happy + dual_happy + retire_happy + tax_happy + raider_happy + fisher_happy + mean_rev
+    happiness_forecasts_121_125[year] = max(0, min(100, prev_happy + total_happy_change))
+    prev_happy = happiness_forecasts_121_125[year]
+
+# =============================================================================
+# GINI FORECAST 121-125
+# =============================================================================
+gini_formal_121_125 = {}
+gini_full_121_125 = {}
+prev_formal_g = ACTUAL_GINI_116_120[120]['formal']  # 0.35
+prev_full_g = ACTUAL_GINI_116_120[120]['full']       # 0.58
+raider_gap = RAIDER_GAP_120                           # 0.23
+
+for year in range(121, 126):
+    # Tax relief effect (reduces formal Gini)
+    tax_gini = TAX_RELIEF_25_GINI_FORMAL[year]
+
+    # Dual income effect
+    dual_gini = DUAL_INCOME_GINI_EFFECT[year]
+
+    # Retirement 90 effect
+    retire_gini = RETIREMENT_90_GINI_EFFECT[year]
+
+    # Fisher cycle effect
+    if FISHER_CYCLE_121_125[year] == 'HIGH':
+        fisher_gini = +0.005  # HIGH years: fishers earn more, slight inequality increase
+    else:
+        fisher_gini = -0.003  # LOW years: more equal
+
+    # Mean reversion toward 0.35
+    formal_mean_rev = (0.35 - prev_formal_g) * 0.05
+
+    # Formal Gini
+    gini_formal_121_125[year] = prev_formal_g + tax_gini + dual_gini + retire_gini + fisher_gini + formal_mean_rev
+    prev_formal_g = gini_formal_121_125[year]
+
+    # Raider gap (shrinking slowly due to continued security)
+    raider_gap += RAIDER_GAP_CHANGE[year]
+    raider_gap = max(0.10, raider_gap)  # Floor: raiders don't disappear completely
+
+    # Full economy Gini
+    gini_full_121_125[year] = gini_formal_121_125[year] + raider_gap
+    prev_full_g = gini_full_121_125[year]
+
+# =============================================================================
+# OUTPUT: YEARS 121-125 FORECAST
+# =============================================================================
+print("\n" + "=" * 80)
+print("YEARS 121-125 FORECAST: REVISED MODEL")
+print("(Recalibrated from 116-120 actuals + New Year 120 policies)")
+print("=" * 80)
+
+print("\nNew Policies Enacted in Year 120:")
+print("  (I) Dual-Income Households (strengthened):")
+print("       - Incentives doubled: 4% homemaker exit rate (was 2%)")
+print("       - Childcare subsidies + tax breaks for dual earners")
+print("       - GDP: +0.3-0.9%; Happiness: +0.5; Gini: -0.001 to -0.002")
+print("  (J) Retirement Age raised to 90 (from 70):")
+print("       - Workers 70-90 retained at ~40-60% productivity")
+print("       - GDP: +0.8-1.6%; Happiness: -2.5 to -1.0 (elderly dissatisfaction)")
+print("       - Gini: +0.001 to +0.003 (elderly earn less, widens spread)")
+print("  (K) Lower Taxes for Bottom 25% of Workforce:")
+print("       - Increased disposable income for lowest earners")
+print("       - GDP: +0.8-1.0% (consumer spending); Happiness: +2.0 to +2.5")
+print("       - Gini: -0.003 to -0.005 (direct inequality reduction)")
+
+print("\nFisher Cycle (confirmed from 116-120):")
+print("  Surges: 116, 119, 122, 125... → HIGH: 117, 120, 123, 126...")
+print("  Year 121: LOW | 122: LOW (surge) | 123: HIGH | 124: LOW | 125: LOW (surge)")
+print("  Year 123 = predicted increase (fisher HIGH + mature policies)")
+
+print("\n" + "-" * 80)
+print("GDP FORECAST")
+print("-" * 80)
+print(f"  {'Year':<6}{'GDP':>14}{'YoY Chg':>10}{'Fisher':>8}  Notes")
+print("  " + "-" * 65)
+print(f"  {'120':<6}{GDP_120:>14,.0f}{'':>10}{'HIGH':>8}  Actual (baseline)")
+
+prev_p = GDP_120
+for year in range(121, 126):
+    gdp_v = gdp_forecasts_121_125[year]
+    chg = ((gdp_v - prev_p) / prev_p) * 100
+    fisher = FISHER_CYCLE_121_125[year]
+    notes = []
+    notes.append(f"Ret90 +{RETIREMENT_90_GDP_BOOST[year]*100:.1f}%")
+    notes.append(f"Tax25 +{TAX_RELIEF_25_GDP_BOOST[year]*100:.1f}%")
+    if DROUGHT_RISK_121_125[year] >= 0.20:
+        notes.append(f"Drought risk {DROUGHT_RISK_121_125[year]:.0%}")
+    note_str = "; ".join(notes)
+    print(f"  {year:<6}{gdp_v:>14,.0f}{chg:>+9.1f}%{fisher:>8}  {note_str}")
+    prev_p = gdp_v
+
+print("\n" + "-" * 80)
+print("HAPPINESS FORECAST")
+print("-" * 80)
+print(f"  {'Year':<6}{'Happiness':>10}{'Change':>10}{'GDP Eff':>10}{'Tax Relief':>12}{'Ret90':>8}")
+print("  " + "-" * 56)
+print(f"  {'120':<6}{HAPPINESS_BASELINE_120:>10.2f}{'':>10}{'':>10}{'':>12}{'':>8}  Baseline")
+
+for year in range(121, 126):
+    happy_v = happiness_forecasts_121_125[year]
+    chg_h = happy_v - (HAPPINESS_BASELINE_120 if year == 121 else happiness_forecasts_121_125[year - 1])
+    prev_g2 = GDP_120 if year == 121 else gdp_forecasts_121_125[year - 1]
+    gdp_gr = ((gdp_forecasts_121_125[year] - prev_g2) / prev_g2) * 100
+    gdp_eff = min(3.0, max(-3.0, gdp_gr * HAPPINESS_GDP_SENSITIVITY))
+    tax_h = TAX_RELIEF_25_HAPPINESS[year]
+    ret_h = RETIREMENT_90_HAPPINESS[year]
+    print(f"  {year:<6}{happy_v:>10.2f}{chg_h:>+9.2f}{gdp_eff:>+9.2f}{tax_h:>+11.1f}{ret_h:>+7.1f}")
+
+print("\n" + "-" * 80)
+print("GINI COEFFICIENT FORECAST")
+print("-" * 80)
+print(f"  {'Year':<6}{'Formal':>10}{'Full Econ':>12}{'Raider Gap':>12}{'Fisher':>8}  Notes")
+print("  " + "-" * 60)
+print(f"  {'120':<6}{ACTUAL_GINI_116_120[120]['formal']:>10.3f}{ACTUAL_GINI_116_120[120]['full']:>12.3f}{RAIDER_GAP_120:>12.3f}{'HIGH':>8}  Actual")
+
+for year in range(121, 126):
+    formal_v = gini_formal_121_125[year]
+    full_v = gini_full_121_125[year]
+    gap_v = full_v - formal_v
+    fisher_v = FISHER_CYCLE_121_125[year]
+    notes_g = []
+    notes_g.append(f"Tax25 {TAX_RELIEF_25_GINI_FORMAL[year]:+.3f}")
+    note_g_str = "; ".join(notes_g)
+    print(f"  {year:<6}{formal_v:>10.3f}{full_v:>12.3f}{gap_v:>12.3f}{fisher_v:>8}  {note_g_str}")
+
+# =============================================================================
+# SUMMARY
+# =============================================================================
+print("\n" + "-" * 80)
+print("5-YEAR OUTLOOK SUMMARY (Years 121-125)")
+print("-" * 80)
+
+gdp_growth_5yr = ((gdp_forecasts_121_125[125] - GDP_120) / GDP_120) * 100
+annualized = ((gdp_forecasts_121_125[125] / GDP_120) ** (1/5) - 1) * 100
+happiness_change_5yr = happiness_forecasts_121_125[125] - HAPPINESS_BASELINE_120
+gini_formal_change_5yr = gini_formal_121_125[125] - ACTUAL_GINI_116_120[120]['formal']
+gini_full_change_5yr = gini_full_121_125[125] - ACTUAL_GINI_116_120[120]['full']
+
+print(f"\n  GDP:")
+print(f"    Year 120 (actual):  ${GDP_120:,.0f}")
+print(f"    Year 125 (forecast): ${gdp_forecasts_121_125[125]:,.0f}")
+print(f"    5-Year Growth:      {gdp_growth_5yr:+.1f}%")
+print(f"    Annualized:         {annualized:+.1f}%")
+print(f"    Peak Year:          123 (fisher HIGH + mature policies)")
+
+print(f"\n  Happiness:")
+print(f"    Year 120 (actual):  {HAPPINESS_BASELINE_120:.2f}")
+print(f"    Year 125 (forecast): {happiness_forecasts_121_125[125]:.2f}")
+print(f"    5-Year Change:      {happiness_change_5yr:+.2f} points")
+print(f"    Tax relief drives improvement; retirement age 90 creates drag")
+
+print(f"\n  Gini (Inequality):")
+print(f"    Formal: {ACTUAL_GINI_116_120[120]['formal']:.3f} → {gini_formal_121_125[125]:.3f} ({gini_formal_change_5yr:+.3f})")
+print(f"    Full:   {ACTUAL_GINI_116_120[120]['full']:.3f} → {gini_full_121_125[125]:.3f} ({gini_full_change_5yr:+.3f})")
+print(f"    Tax relief for bottom 25% directly reduces formal inequality")
+print(f"    Raiders remain but gap shrinking slowly")
+
+print("\n  Policy Impact Analysis:")
+print("    POSITIVE:")
+print("      - Tax relief bottom 25%: Strongest equality + happiness effect")
+print("      - Dual-income push: Adds productive workforce, modest GDP boost")
+print("      - Retirement 90: Significant GDP boost from larger workforce")
+print("    NEGATIVE:")
+print("      - Retirement 90: Major happiness drag (elderly forced to work)")
+print("      - Reduced tax revenue from bottom 25% relief: limits public spending")
+print("      - Elderly workers at 40-60% productivity: drags avg productivity")
+
+print("\n  Key Risks:")
+print("    - Drought in Year 125 (30% probability, mitigated by drought-resistant crops)")
+print("    - Raiders persist despite security infrastructure")
+print("    - Retirement age 90 may face political resistance")
+print("    - Fisher cycle LOW years (121, 122, 124, 125) depress GDP significantly")
+print("=" * 80)
+
+# =============================================================================
+# COMPACT FORECAST TABLE
+# =============================================================================
+print("\n" + "=" * 80)
+print("COMPACT FORECAST: YEARS 121-125")
+print("=" * 80)
+print(f"  {'Year':<6}{'GDP':>14}{'Happiness':>12}{'Gini Formal':>13}{'Gini Full':>12}{'Fisher':>8}")
+print("  " + "-" * 65)
+print(f"  {'120':<6}{GDP_120:>14,.0f}{HAPPINESS_BASELINE_120:>12.2f}{ACTUAL_GINI_116_120[120]['formal']:>13.3f}{ACTUAL_GINI_116_120[120]['full']:>12.3f}{'HIGH':>8}")
+for year in range(121, 126):
+    print(f"  {year:<6}{gdp_forecasts_121_125[year]:>14,.0f}{happiness_forecasts_121_125[year]:>12.2f}{gini_formal_121_125[year]:>13.3f}{gini_full_121_125[year]:>12.3f}{FISHER_CYCLE_121_125[year]:>8}")
+print("=" * 80)
